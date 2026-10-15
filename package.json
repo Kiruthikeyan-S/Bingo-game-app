@@ -1,0 +1,12 @@
+{
+  "name": "bingo-game-workspace",
+  "private": true,
+  "scripts": {
+    "server": "npm --prefix server run dev",
+    "mobile": "npm --prefix mobile start",
+    "test": "npm --prefix server test"
+  },
+  "dependencies": {
+    "zod": "^3.24.2"
+  }
+}
