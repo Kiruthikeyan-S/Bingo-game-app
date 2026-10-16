@@ -8,6 +8,14 @@ build/
 .expo/
 *.apk
 *.aab
+.gradle/
+**/android/.gradle/
+**/android/build/
+**/android/app/build/
+**/android/.cxx/
+**/android/local.properties
+*.keystore
+*.jks
 
 # Environment & Secrets
 .env
