@@ -1,5 +1,7 @@
 import { z } from 'zod';
 
+export const GameTypeSchema = z.enum(['bingo', 'chess', 'ludo']).default('bingo');
+
 export const RoomCodeSchema = z
   .string()
   .trim()
@@ -12,7 +14,10 @@ export const UsernameSchema = z
   .trim()
   .min(2, 'Username must be at least 2 characters')
   .max(16, 'Username must be at most 16 characters')
-  .regex(/^[a-zA-Z0-9_ -]+$/, 'Username can only contain alphanumeric characters, hyphens, and underscores');
+  .regex(
+    /^[a-zA-Z0-9_ -]+$/,
+    'Username can only contain alphanumeric characters, hyphens, and underscores'
+  );
 
 export const CalledNumberSchema = z
   .number()
@@ -26,7 +31,10 @@ export const BoardSchema = z
   .refine(
     (arr: number[]) => {
       const set = new Set(arr);
-      return set.size === 25 && Array.from({ length: 25 }, (_, i) => i + 1).every((n) => set.has(n));
+      return (
+        set.size === 25 &&
+        Array.from({ length: 25 }, (_, i) => i + 1).every((n) => set.has(n))
+      );
     },
     { message: 'Board must contain all numbers from 1 to 25 exactly once' }
   );
@@ -34,6 +42,9 @@ export const BoardSchema = z
 export const CreateRoomInputSchema = z.object({
   username: UsernameSchema,
   avatarUrl: z.string().optional().default(''),
+  playerId: z.string().optional(),
+  gameType: GameTypeSchema.optional().default('bingo'),
+  maxPlayers: z.number().int().min(2).max(4).optional().default(2),
 });
 
 export const JoinRoomInputSchema = z.object({
@@ -45,4 +56,14 @@ export const JoinRoomInputSchema = z.object({
 
 export const CallNumberInputSchema = z.object({
   number: CalledNumberSchema,
+});
+
+export const ChessMoveInputSchema = z.object({
+  from: z.string().regex(/^[a-h][1-8]$/, 'Invalid source square'),
+  to: z.string().regex(/^[a-h][1-8]$/, 'Invalid target square'),
+  promotion: z.enum(['q', 'r', 'b', 'n']).optional(),
+});
+
+export const LudoMoveTokenInputSchema = z.object({
+  tokenId: z.number().int().min(0).max(3),
 });

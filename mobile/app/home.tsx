@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -7,210 +7,552 @@ import {
   Image,
   ScrollView,
   Modal,
+  Animated,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import {
   Play,
-  PlusCircle,
   LogIn,
   Trophy,
-  HelpCircle,
   Settings as SettingsIcon,
-  User,
   X,
-  CheckCircle2,
+  Flame,
+  Sparkles,
+  Bot,
+  Globe,
+  Users,
+  Crown,
+  Dices,
+  Grid,
+  Sun,
+  Moon,
+  Coins,
+  Swords,
 } from 'lucide-react-native';
 import { usePlayerStore } from '../store/playerStore';
+import { useGameStore } from '../store/gameStore';
+import { useSocket } from '../hooks/useSocket';
 import { GameButton } from '../components/GameButton';
+import { BottomNavBar } from '../components/BottomNavBar';
+import { BotDifficulty, GameType } from '../../shared/types';
+
+interface GameCardMeta {
+  id: GameType;
+  title: string;
+  subtitle: string;
+  badge: string;
+  playersTag: string;
+  description: string;
+  gradient: [string, string, string];
+  accentColor: string;
+  previewTokens: string[];
+}
+
+const GAME_CARDS: GameCardMeta[] = [
+  {
+    id: 'bingo',
+    title: 'BINGO BATTLE',
+    subtitle: '5×5 Tactical Grid',
+    badge: 'CLASSIC & PVP',
+    playersTag: '1–4 Players',
+    description:
+      'Arrange secret numbers 1–25, call numbers in real-time, and light up 5 B-I-N-G-O lines before your rival!',
+    gradient: ['#3b0764', '#311078', '#1e1b4b'],
+    accentColor: '#00e5ff',
+    previewTokens: ['B', 'I', 'N', 'G', 'O'],
+  },
+  {
+    id: 'chess',
+    title: 'ROYAL CHESS',
+    subtitle: 'Grandmaster 8×8 Arena',
+    badge: 'STRATEGY AI',
+    playersTag: '1–2 Players',
+    description:
+      'Full FIDE legal rules with castling, en passant, promotions, move history, and multi-depth AI or live 1v1!',
+    gradient: ['#064e3b', '#065f46', '#0f172a'],
+    accentColor: '#00ff87',
+    previewTokens: ['♔', '♕', '♖', '♗', '♘'],
+  },
+  {
+    id: 'ludo',
+    title: 'CLASSIC LUDO',
+    subtitle: '4-Color Dice Warfare',
+    badge: '2–4 PLAYERS',
+    playersTag: '1–4 Players',
+    description:
+      'Roll a 6 to deploy tokens, chase & capture opponents, protect star squares, and race all 4 tokens home!',
+    gradient: ['#7c2d12', '#9a3412', '#1e1b4b'],
+    accentColor: '#ffd700',
+    previewTokens: ['🔴', '🟢', '🟡', '🔵', '🎲'],
+  },
+];
 
 export default function HomeScreen() {
   const router = useRouter();
+  useSocket();
+
+  const playerId = usePlayerStore((s) => s.playerId);
   const username = usePlayerStore((s) => s.username);
   const avatarUrl = usePlayerStore((s) => s.avatarUrl);
+  const coins = usePlayerStore((s) => s.coins);
+  const stats = usePlayerStore((s) => s.stats);
+  const theme = usePlayerStore((s) => s.theme);
+  const toggleTheme = usePlayerStore((s) => s.toggleTheme);
+  const hydrateFromStorage = usePlayerStore((s) => s.hydrateFromStorage);
 
-  const [howToPlayVisible, setHowToPlayVisible] = useState(false);
+  const isConnected = useGameStore((s) => s.isConnected);
+  const selectedGame = useGameStore((s) => s.selectedGame);
+  const botDifficulty = useGameStore((s) => s.botDifficulty);
+  const ludoBotCount = useGameStore((s) => s.ludoBotCount);
+  const setSelectedGame = useGameStore((s) => s.setSelectedGame);
+  const setGameMode = useGameStore((s) => s.setGameMode);
+  const setBotDifficulty = useGameStore((s) => s.setBotDifficulty);
+  const setLudoBotCount = useGameStore((s) => s.setLudoBotCount);
+  const startBotBingoMatch = useGameStore((s) => s.startBotBingoMatch);
+
+  const [modeModalVisible, setModeModalVisible] = useState(false);
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    hydrateFromStorage();
+    Animated.timing(fadeAnim, {
+      toValue: 1,
+      duration: 450,
+      useNativeDriver: true,
+    }).start();
+  }, []);
+
+  const isLight = theme === 'light';
+
+  const handleSelectGameCard = (game: GameType) => {
+    setSelectedGame(game);
+    setModeModalVisible(true);
+  };
+
+  const handleStartBotGame = () => {
+    setModeModalVisible(false);
+    setGameMode('bot');
+
+    if (selectedGame === 'bingo') {
+      startBotBingoMatch(playerId, username, avatarUrl);
+      router.push('/board-setup');
+    } else if (selectedGame === 'chess') {
+      router.push('/games/chess');
+    } else if (selectedGame === 'ludo') {
+      router.push('/games/ludo');
+    }
+  };
+
+  const handleCreateOnlineRoom = () => {
+    setModeModalVisible(false);
+    setGameMode('online');
+    router.push('/create-room');
+  };
+
+  const handleJoinOnlineRoom = () => {
+    setModeModalVisible(false);
+    setGameMode('online');
+    router.push('/join-room');
+  };
+
+  const handleInviteFriends = () => {
+    setModeModalVisible(false);
+    setGameMode('online');
+    router.push('/friends');
+  };
+
+  const activeGameMeta =
+    GAME_CARDS.find((g) => g.id === selectedGame) || GAME_CARDS[0];
 
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <ScrollView contentContainerStyle={styles.container}>
-        {/* Top Profile Header */}
+    <SafeAreaView style={[styles.safeArea, isLight && styles.safeAreaLight]}>
+      <ScrollView
+        contentContainerStyle={styles.container}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* Top Bar: App Logo/Name, Profile, Coins, Theme & Settings */}
         <View style={styles.topBar}>
           <TouchableOpacity
-            style={styles.profileBadge}
+            activeOpacity={0.85}
+            style={[styles.profileBadge, isLight && styles.cardLight]}
             onPress={() => router.push('/profile')}
           >
-            <Image source={{ uri: avatarUrl }} style={styles.profileAvatar} />
-            <View>
-              <Text style={styles.greeting}>WELCOME BACK</Text>
-              <Text style={styles.playerName}>{username}</Text>
+            <View style={styles.avatarRing}>
+              <Image source={{ uri: avatarUrl }} style={styles.profileAvatar} />
+              <View style={styles.levelPill}>
+                <Text style={styles.levelPillText}>HUB</Text>
+              </View>
+            </View>
+            <View style={styles.profileTextCol}>
+              <View style={styles.greetingRow}>
+                <Flame size={11} color="#00e5ff" />
+                <Text style={styles.greeting}>GAME HUB ARENA</Text>
+              </View>
+              <Text
+                style={[styles.playerName, isLight && styles.textDark]}
+                numberOfLines={1}
+              >
+                {username}
+              </Text>
             </View>
           </TouchableOpacity>
 
           <View style={styles.topRightActions}>
+            {/* Non-monetary Coins Pill */}
+            <View style={styles.coinsPill}>
+              <Coins size={15} color="#ffd700" />
+              <Text style={styles.coinsText}>{coins}</Text>
+            </View>
+
+            {/* Theme Toggle */}
             <TouchableOpacity
-              style={styles.iconCircle}
+              activeOpacity={0.8}
+              style={[styles.iconCircle, isLight && styles.cardLight]}
+              onPress={toggleTheme}
+            >
+              {isLight ? (
+                <Moon size={18} color="#334155" />
+              ) : (
+                <Sun size={18} color="#ffd700" />
+              )}
+            </TouchableOpacity>
+
+            {/* Settings */}
+            <TouchableOpacity
+              activeOpacity={0.8}
+              style={[styles.iconCircle, isLight && styles.cardLight]}
               onPress={() => router.push('/settings')}
             >
-              <SettingsIcon size={20} color="#a5b4fc" />
+              <SettingsIcon size={18} color={isLight ? '#334155' : '#cbd5e1'} />
             </TouchableOpacity>
           </View>
         </View>
 
-        {/* Hero Card */}
-        <LinearGradient
-          colors={['#7928ca', '#4338ca', '#2563eb']}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={styles.heroCard}
-        >
-          <View style={styles.heroContent}>
-            <Text style={styles.heroSubtitle}>SEASON 1</Text>
-            <Text style={styles.heroTitle}>BINGO BATTLE 1v1</Text>
-            <Text style={styles.heroDescription}>
-              Compete live with friends. Call numbers, complete 5 lines, and shout BINGO!
+        {/* Player Quick Summary Strip */}
+        <View style={[styles.statsBanner, isLight && styles.cardLight]}>
+          <View style={styles.statCell}>
+            <Text style={styles.statValue}>{stats.played}</Text>
+            <Text style={styles.statLabel}>MATCHES</Text>
+          </View>
+          <View style={styles.statDivider} />
+          <View style={styles.statCell}>
+            <Text style={[styles.statValue, { color: '#00ff87' }]}>{stats.wins}</Text>
+            <Text style={styles.statLabel}>VICTORIES</Text>
+          </View>
+          <View style={styles.statDivider} />
+          <View style={styles.statCell}>
+            <Text style={[styles.statValue, { color: '#00e5ff' }]}>
+              {stats.played > 0
+                ? `${Math.round((stats.wins / stats.played) * 100)}%`
+                : '0%'}
+            </Text>
+            <Text style={styles.statLabel}>WIN RATE</Text>
+          </View>
+          <View style={styles.statDivider} />
+          <TouchableOpacity
+            style={styles.statCell}
+            onPress={() => router.push('/settings')}
+          >
+            <View style={styles.onlineRow}>
+              <View
+                style={[
+                  styles.netDot,
+                  { backgroundColor: isConnected ? '#10b981' : '#f59e0b' },
+                ]}
+              />
+              <Text
+                style={[
+                  styles.statValue,
+                  {
+                    fontSize: 13,
+                    color: isConnected ? '#10b981' : '#f59e0b',
+                  },
+                ]}
+              >
+                {isConnected ? 'ONLINE' : 'LOCAL'}
+              </Text>
+            </View>
+            <Text style={styles.statLabel}>SERVER</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Section Header */}
+        <View style={styles.sectionHeaderRow}>
+          <View style={styles.sectionTitleLeft}>
+            <Swords size={16} color="#00e5ff" />
+            <Text style={[styles.sectionTitle, isLight && styles.textDark]}>
+              CHOOSE YOUR GAME
             </Text>
           </View>
-        </LinearGradient>
-
-        {/* Primary Action Buttons */}
-        <View style={styles.menuSection}>
           <TouchableOpacity
-            activeOpacity={0.85}
-            style={styles.playNowCard}
-            onPress={() => router.push('/create-room')}
+            style={styles.quickJoinPill}
+            onPress={() => router.push('/join-room')}
           >
-            <LinearGradient
-              colors={['#10b981', '#059669']}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={styles.playGradient}
-            >
-              <View style={styles.playIconContainer}>
-                <Play size={28} color="#070b1e" fill="#070b1e" />
-              </View>
-              <View style={styles.playTextContainer}>
-                <Text style={styles.playTitle}>Create Battle Room</Text>
-                <Text style={styles.playSubtitle}>Generate a 6-digit code for a friend</Text>
-              </View>
-            </LinearGradient>
+            <LogIn size={13} color="#00e5ff" />
+            <Text style={styles.quickJoinText}>Enter Room Code</Text>
           </TouchableOpacity>
-
-          <View style={styles.rowActions}>
-            <TouchableOpacity
-              activeOpacity={0.8}
-              style={[styles.actionTile, { borderColor: '#6366f1' }]}
-              onPress={() => router.push('/join-room')}
-            >
-              <LogIn size={26} color="#00e5ff" />
-              <Text style={styles.tileTitle}>Join Room</Text>
-              <Text style={styles.tileDesc}>Enter 6-char code</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              activeOpacity={0.8}
-              style={[styles.actionTile, { borderColor: '#ffd700' }]}
-              onPress={() => router.push('/leaderboard')}
-            >
-              <Trophy size={26} color="#ffd700" />
-              <Text style={styles.tileTitle}>Leaderboard</Text>
-              <Text style={styles.tileDesc}>Global rankings</Text>
-            </TouchableOpacity>
-          </View>
-
-          <View style={styles.rowActions}>
-            <TouchableOpacity
-              activeOpacity={0.8}
-              style={[styles.actionTile, { borderColor: '#334155' }]}
-              onPress={() => setHowToPlayVisible(true)}
-            >
-              <HelpCircle size={26} color="#a5b4fc" />
-              <Text style={styles.tileTitle}>How to Play</Text>
-              <Text style={styles.tileDesc}>Rules & Winning lines</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              activeOpacity={0.8}
-              style={[styles.actionTile, { borderColor: '#334155' }]}
-              onPress={() => router.push('/profile')}
-            >
-              <User size={26} color="#a5b4fc" />
-              <Text style={styles.tileTitle}>My Profile</Text>
-              <Text style={styles.tileDesc}>Stats & History</Text>
-            </TouchableOpacity>
-          </View>
         </View>
 
-        {/* How to Play Modal */}
-        <Modal
-          visible={howToPlayVisible}
-          animationType="slide"
-          transparent={true}
-          onRequestClose={() => setHowToPlayVisible(false)}
-        >
-          <View style={styles.modalOverlay}>
-            <View style={styles.modalContent}>
-              <View style={styles.modalHeader}>
-                <Text style={styles.modalTitle}>How to Play Bingo Battle</Text>
-                <TouchableOpacity onPress={() => setHowToPlayVisible(false)}>
-                  <X size={24} color="#94a3b8" />
-                </TouchableOpacity>
+        {/* Three Animated Game Cards: 1. Bingo, 2. Chess, 3. Ludo */}
+        <Animated.View style={{ opacity: fadeAnim, gap: 14 }}>
+          {GAME_CARDS.map((game) => (
+            <TouchableOpacity
+              key={game.id}
+              activeOpacity={0.88}
+              onPress={() => handleSelectGameCard(game.id)}
+              style={styles.gameCardTouchable}
+            >
+              <LinearGradient
+                colors={game.gradient}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={[
+                  styles.gameCard,
+                  { borderColor: `${game.accentColor}66` },
+                ]}
+              >
+                <View style={styles.cardTopRow}>
+                  <View
+                    style={[
+                      styles.cardBadge,
+                      {
+                        backgroundColor: `${game.accentColor}20`,
+                        borderColor: `${game.accentColor}55`,
+                      },
+                    ]}
+                  >
+                    <Sparkles size={11} color={game.accentColor} />
+                    <Text
+                      style={[styles.cardBadgeText, { color: game.accentColor }]}
+                    >
+                      {game.badge}
+                    </Text>
+                  </View>
+
+                  <View style={styles.playersPill}>
+                    <Users size={11} color="#e2e8f0" />
+                    <Text style={styles.playersPillText}>{game.playersTag}</Text>
+                  </View>
+                </View>
+
+                <View style={styles.cardMainRow}>
+                  <View style={styles.cardInfoCol}>
+                    <Text style={styles.gameCardTitle}>{game.title}</Text>
+                    <Text
+                      style={[
+                        styles.gameCardSubtitle,
+                        { color: game.accentColor },
+                      ]}
+                    >
+                      {game.subtitle}
+                    </Text>
+                    <Text style={styles.gameCardDesc}>{game.description}</Text>
+                  </View>
+                </View>
+
+                {/* Preview Orbs + Play CTA Row */}
+                <View style={styles.cardFooterRow}>
+                  <View style={styles.previewTokensRow}>
+                    {game.previewTokens.map((tok, i) => (
+                      <View
+                        key={i}
+                        style={[
+                          styles.previewOrb,
+                          { borderColor: `${game.accentColor}55` },
+                        ]}
+                      >
+                        <Text style={styles.previewOrbText}>{tok}</Text>
+                      </View>
+                    ))}
+                  </View>
+
+                  <View
+                    style={[
+                      styles.playBtnPill,
+                      { backgroundColor: game.accentColor },
+                    ]}
+                  >
+                    <Play size={14} color="#050816" fill="#050816" />
+                    <Text style={styles.playBtnPillText}>PLAY</Text>
+                  </View>
+                </View>
+              </LinearGradient>
+            </TouchableOpacity>
+          ))}
+        </Animated.View>
+      </ScrollView>
+
+      {/* Bottom Navigation Bar */}
+      <BottomNavBar />
+
+      {/* Game Selection Modal (Play vs Bot / Play Online / Difficulty) */}
+      <Modal
+        visible={modeModalVisible}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setModeModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, isLight && styles.cardLight]}>
+            <View style={styles.modalHeader}>
+              <View>
+                <Text
+                  style={[
+                    styles.modalGameTag,
+                    { color: activeGameMeta.accentColor },
+                  ]}
+                >
+                  {activeGameMeta.subtitle.toUpperCase()}
+                </Text>
+                <Text style={[styles.modalTitle, isLight && styles.textDark]}>
+                  {activeGameMeta.title}
+                </Text>
+              </View>
+              <TouchableOpacity
+                style={styles.modalCloseBtn}
+                onPress={() => setModeModalVisible(false)}
+              >
+                <X size={20} color="#94a3b8" />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView showsVerticalScrollIndicator={false}>
+              {/* 1. PLAY VS BOT SECTION */}
+              <View style={styles.modeSectionCard}>
+                <View style={styles.modeHeaderRow}>
+                  <View style={styles.modeIconBadge}>
+                    <Bot size={20} color="#00ff87" />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.modeTitle}>Play vs Smart Bot</Text>
+                    <Text style={styles.modeSubtitle}>
+                      Instant offline match • No internet required
+                    </Text>
+                  </View>
+                </View>
+
+                {/* Bot Difficulty Selector: Easy / Medium / Hard */}
+                <Text style={styles.selectorLabel}>SELECT BOT DIFFICULTY</Text>
+                <View style={styles.difficultyRow}>
+                  {(['easy', 'medium', 'hard'] as BotDifficulty[]).map((diff) => {
+                    const active = botDifficulty === diff;
+                    return (
+                      <TouchableOpacity
+                        key={diff}
+                        activeOpacity={0.8}
+                        onPress={() => setBotDifficulty(diff)}
+                        style={[
+                          styles.diffPill,
+                          active && styles.diffPillActive,
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            styles.diffPillText,
+                            active && styles.diffPillTextActive,
+                          ]}
+                        >
+                          {diff.toUpperCase()}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+
+                {/* Ludo Bot Count Selector (1, 2, or 3 Bots) */}
+                {selectedGame === 'ludo' && (
+                  <>
+                    <Text style={[styles.selectorLabel, { marginTop: 10 }]}>
+                      NUMBER OF AI OPPONENTS
+                    </Text>
+                    <View style={styles.difficultyRow}>
+                      {([1, 2, 3] as Array<1 | 2 | 3>).map((cnt) => {
+                        const active = ludoBotCount === cnt;
+                        return (
+                          <TouchableOpacity
+                            key={cnt}
+                            activeOpacity={0.8}
+                            onPress={() => setLudoBotCount(cnt)}
+                            style={[
+                              styles.diffPill,
+                              active && styles.diffPillActive,
+                            ]}
+                          >
+                            <Text
+                              style={[
+                                styles.diffPillText,
+                                active && styles.diffPillTextActive,
+                              ]}
+                            >
+                              1 VS {cnt} {cnt === 1 ? 'BOT' : 'BOTS'}
+                            </Text>
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </View>
+                  </>
+                )}
+
+                <GameButton
+                  title={`Start vs ${
+                    botDifficulty.charAt(0).toUpperCase() + botDifficulty.slice(1)
+                  } Bot`}
+                  variant="success"
+                  onPress={handleStartBotGame}
+                  icon={<Play size={18} color="#ffffff" />}
+                  style={{ marginTop: 12 }}
+                />
               </View>
 
-              <ScrollView style={styles.modalScroll}>
-                <View style={styles.ruleItem}>
-                  <CheckCircle2 size={18} color="#00e5ff" />
-                  <Text style={styles.ruleText}>
-                    Each player receives a 5×5 grid with numbers 1 to 25.
-                  </Text>
+              {/* 2. PLAY ONLINE MULTIPLAYER SECTION */}
+              <View style={[styles.modeSectionCard, styles.onlineSectionCard]}>
+                <View style={styles.modeHeaderRow}>
+                  <View
+                    style={[
+                      styles.modeIconBadge,
+                      { backgroundColor: 'rgba(0, 229, 255, 0.14)' },
+                    ]}
+                  >
+                    <Globe size={20} color="#00e5ff" />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.modeTitle}>Play Online with Friends</Text>
+                    <Text style={styles.modeSubtitle}>
+                      Real-time synchronized rooms • Private 6-digit codes
+                    </Text>
+                  </View>
                 </View>
 
-                <View style={styles.ruleItem}>
-                  <CheckCircle2 size={18} color="#00e5ff" />
-                  <Text style={styles.ruleText}>
-                    Shuffle or manually arrange your numbers before confirming your board.
-                  </Text>
-                </View>
+                <GameButton
+                  title="Create Private Room"
+                  variant="primary"
+                  onPress={handleCreateOnlineRoom}
+                  icon={<Crown size={18} color="#ffffff" />}
+                />
 
-                <View style={styles.ruleItem}>
-                  <CheckCircle2 size={18} color="#00e5ff" />
-                  <Text style={styles.ruleText}>
-                    Take turns calling numbers between 1 and 25.
-                  </Text>
+                <View style={styles.onlineSubRow}>
+                  <GameButton
+                    title="Join with Code"
+                    variant="outline"
+                    onPress={handleJoinOnlineRoom}
+                    icon={<LogIn size={16} color="#00e5ff" />}
+                    style={{ flex: 1 }}
+                  />
+                  <GameButton
+                    title="Invite Friends"
+                    variant="outline"
+                    onPress={handleInviteFriends}
+                    icon={<Users size={16} color="#a5b4fc" />}
+                    style={{ flex: 1 }}
+                  />
                 </View>
-
-                <View style={styles.ruleItem}>
-                  <CheckCircle2 size={18} color="#00e5ff" />
-                  <Text style={styles.ruleText}>
-                    Called numbers are automatically crossed off on both players' boards!
-                  </Text>
-                </View>
-
-                <View style={styles.ruleItem}>
-                  <CheckCircle2 size={18} color="#00e5ff" />
-                  <Text style={styles.ruleText}>
-                    Completing any 5-number horizontal, vertical, or diagonal line lights up a letter in B-I-N-G-O.
-                  </Text>
-                </View>
-
-                <View style={styles.ruleItem}>
-                  <CheckCircle2 size={18} color="#ffd700" />
-                  <Text style={styles.ruleText}>
-                    First player to complete 5 lines wins! If both hit 5 lines on the same call, it's a DRAW.
-                  </Text>
-                </View>
-              </ScrollView>
-
-              <GameButton
-                title="Got It!"
-                onPress={() => setHowToPlayVisible(false)}
-                style={{ marginTop: 16 }}
-              />
-            </View>
+              </View>
+            </ScrollView>
           </View>
-        </Modal>
-      </ScrollView>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -218,193 +560,415 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#070b1e',
+    backgroundColor: '#050816',
+  },
+  safeAreaLight: {
+    backgroundColor: '#f1f5f9',
   },
   container: {
-    padding: 20,
-    paddingBottom: 40,
+    paddingHorizontal: 16,
+    paddingTop: 8,
+    paddingBottom: 24,
+  },
+  cardLight: {
+    backgroundColor: '#ffffff',
+    borderColor: '#cbd5e1',
+  },
+  textDark: {
+    color: '#0f172a',
   },
   topBar: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 20,
+    marginBottom: 12,
   },
   profileBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#11183c',
-    padding: 8,
-    paddingRight: 16,
-    borderRadius: 24,
-    borderWidth: 1,
-    borderColor: '#1e293b',
-    gap: 12,
+    backgroundColor: '#0f1636',
+    paddingVertical: 6,
+    paddingLeft: 8,
+    paddingRight: 14,
+    borderRadius: 26,
+    borderWidth: 1.5,
+    borderColor: '#1e2b5e',
+    gap: 10,
+    flexShrink: 1,
+  },
+  avatarRing: {
+    position: 'relative',
   },
   profileAvatar: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    borderWidth: 1.5,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    borderWidth: 2,
     borderColor: '#00e5ff',
   },
+  levelPill: {
+    position: 'absolute',
+    bottom: -3,
+    right: -4,
+    backgroundColor: '#ffd700',
+    paddingHorizontal: 4,
+    paddingVertical: 1,
+    borderRadius: 5,
+    borderWidth: 1,
+    borderColor: '#050816',
+  },
+  levelPillText: {
+    fontSize: 7,
+    fontWeight: '900',
+    color: '#050816',
+  },
+  profileTextCol: {
+    justifyContent: 'center',
+  },
+  greetingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
   greeting: {
-    fontSize: 10,
-    fontWeight: '800',
-    color: '#94a3b8',
+    fontSize: 8,
+    fontWeight: '900',
+    color: '#00e5ff',
     letterSpacing: 1,
   },
   playerName: {
-    fontSize: 16,
-    fontWeight: '800',
+    fontSize: 15,
+    fontWeight: '900',
     color: '#f8fafc',
   },
   topRightActions: {
     flexDirection: 'row',
-    gap: 8,
-  },
-  iconCircle: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: '#11183c',
-    borderWidth: 1,
-    borderColor: '#1e293b',
     alignItems: 'center',
-    justifyContent: 'center',
-  },
-  heroCard: {
-    borderRadius: 22,
-    padding: 22,
-    marginBottom: 24,
-    shadowColor: '#7928ca',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.4,
-    shadowRadius: 14,
-    elevation: 6,
-  },
-  heroContent: {
     gap: 6,
   },
-  heroSubtitle: {
-    fontSize: 11,
+  coinsPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: 'rgba(255, 215, 0, 0.14)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 215, 0, 0.4)',
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    borderRadius: 18,
+  },
+  coinsText: {
+    fontSize: 13,
     fontWeight: '900',
     color: '#ffd700',
-    letterSpacing: 2,
   },
-  heroTitle: {
-    fontSize: 26,
-    fontWeight: '900',
-    color: '#ffffff',
-    letterSpacing: 0.5,
-  },
-  heroDescription: {
-    fontSize: 13,
-    color: '#e2e8f0',
-    lineHeight: 18,
-    marginTop: 4,
-  },
-  menuSection: {
-    gap: 14,
-  },
-  playNowCard: {
-    borderRadius: 18,
-    overflow: 'hidden',
-    shadowColor: '#10b981',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  playGradient: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 20,
-    gap: 16,
-  },
-  playIconContainer: {
-    width: 54,
-    height: 54,
-    borderRadius: 27,
-    backgroundColor: '#ffffff',
+  iconCircle: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: '#0f1636',
+    borderWidth: 1.5,
+    borderColor: '#1e2b5e',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  playTextContainer: {
+  statsBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#0c122e',
+    borderRadius: 18,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderWidth: 1,
+    borderColor: '#1e2b5e',
+    marginBottom: 14,
+  },
+  statCell: {
     flex: 1,
+    alignItems: 'center',
   },
-  playTitle: {
-    fontSize: 20,
+  statValue: {
+    fontSize: 16,
+    fontWeight: '900',
+    color: '#f8fafc',
+  },
+  statLabel: {
+    fontSize: 9,
     fontWeight: '800',
-    color: '#ffffff',
-  },
-  playSubtitle: {
-    fontSize: 12,
-    color: '#d1fae5',
+    color: '#64748b',
+    letterSpacing: 0.8,
     marginTop: 2,
   },
-  rowActions: {
-    flexDirection: 'row',
-    gap: 12,
+  statDivider: {
+    width: 1,
+    height: 24,
+    backgroundColor: '#1e293b',
   },
-  actionTile: {
-    flex: 1,
-    backgroundColor: '#11183c',
-    borderRadius: 18,
-    padding: 18,
-    borderWidth: 1.5,
+  onlineRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  netDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 4,
+  },
+  sectionHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 10,
+  },
+  sectionTitleLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: 6,
   },
-  tileTitle: {
-    fontSize: 16,
-    fontWeight: '700',
+  sectionTitle: {
+    fontSize: 13,
+    fontWeight: '900',
     color: '#f8fafc',
-    marginTop: 6,
+    letterSpacing: 1.2,
   },
-  tileDesc: {
+  quickJoinPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: 'rgba(0, 229, 255, 0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(0, 229, 255, 0.35)',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 12,
+  },
+  quickJoinText: {
     fontSize: 11,
-    color: '#94a3b8',
+    fontWeight: '800',
+    color: '#00e5ff',
+  },
+  gameCardTouchable: {
+    borderRadius: 22,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.35,
+    shadowRadius: 10,
+    elevation: 6,
+  },
+  gameCard: {
+    borderRadius: 22,
+    padding: 16,
+    borderWidth: 1.5,
+  },
+  cardTopRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  cardBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 9,
+    paddingVertical: 3,
+    borderRadius: 10,
+    borderWidth: 1,
+  },
+  cardBadgeText: {
+    fontSize: 9,
+    fontWeight: '900',
+    letterSpacing: 1,
+  },
+  playersPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: 'rgba(0, 0, 0, 0.35)',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 10,
+  },
+  playersPillText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#e2e8f0',
+  },
+  cardMainRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  cardInfoCol: {
+    flex: 1,
+  },
+  gameCardTitle: {
+    fontSize: 22,
+    fontWeight: '900',
+    color: '#ffffff',
+    letterSpacing: 0.8,
+  },
+  gameCardSubtitle: {
+    fontSize: 12,
+    fontWeight: '800',
+    marginTop: 1,
+  },
+  gameCardDesc: {
+    fontSize: 12,
+    color: '#cbd5e1',
+    lineHeight: 17,
+    marginTop: 5,
+  },
+  cardFooterRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 12,
+    paddingTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  previewTokensRow: {
+    flexDirection: 'row',
+    gap: 6,
+  },
+  previewOrb: {
+    width: 32,
+    height: 32,
+    borderRadius: 10,
+    backgroundColor: 'rgba(5, 8, 22, 0.5)',
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  previewOrbText: {
+    fontSize: 14,
+    fontWeight: '900',
+    color: '#ffffff',
+  },
+  playBtnPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 14,
+  },
+  playBtnPillText: {
+    fontSize: 13,
+    fontWeight: '900',
+    color: '#050816',
+    letterSpacing: 0.8,
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.75)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
+    backgroundColor: 'rgba(5, 8, 22, 0.82)',
+    justifyContent: 'flex-end',
   },
   modalContent: {
-    backgroundColor: '#11183c',
-    borderRadius: 22,
-    padding: 22,
-    width: '100%',
-    maxHeight: '80%',
-    borderWidth: 1.5,
-    borderColor: '#6366f1',
+    backgroundColor: '#0c122e',
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    padding: 20,
+    maxHeight: '88%',
+    borderTopWidth: 2,
+    borderColor: '#312e81',
   },
   modalHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: 14,
+  },
+  modalGameTag: {
+    fontSize: 10,
+    fontWeight: '900',
+    letterSpacing: 1.4,
   },
   modalTitle: {
-    fontSize: 18,
-    fontWeight: '800',
+    fontSize: 24,
+    fontWeight: '900',
+    color: '#ffffff',
+  },
+  modalCloseBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#1e293b',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modeSectionCard: {
+    backgroundColor: '#131c47',
+    borderRadius: 20,
+    padding: 16,
+    borderWidth: 1.5,
+    borderColor: 'rgba(0, 255, 135, 0.3)',
+    marginBottom: 14,
+  },
+  onlineSectionCard: {
+    borderColor: 'rgba(0, 229, 255, 0.3)',
+  },
+  modeHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginBottom: 12,
+  },
+  modeIconBadge: {
+    width: 42,
+    height: 42,
+    borderRadius: 13,
+    backgroundColor: 'rgba(0, 255, 135, 0.14)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modeTitle: {
+    fontSize: 17,
+    fontWeight: '900',
     color: '#f8fafc',
   },
-  modalScroll: {
-    maxHeight: 340,
+  modeSubtitle: {
+    fontSize: 11,
+    color: '#94a3b8',
+    marginTop: 1,
   },
-  ruleItem: {
+  selectorLabel: {
+    fontSize: 10,
+    fontWeight: '900',
+    color: '#a5b4fc',
+    letterSpacing: 1.2,
+    marginBottom: 8,
+  },
+  difficultyRow: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 12,
-    marginVertical: 8,
+    gap: 8,
   },
-  ruleText: {
+  diffPill: {
     flex: 1,
-    fontSize: 14,
-    color: '#e2e8f0',
-    lineHeight: 20,
+    paddingVertical: 10,
+    borderRadius: 12,
+    backgroundColor: '#090e26',
+    borderWidth: 1.5,
+    borderColor: '#24326f',
+    alignItems: 'center',
+  },
+  diffPillActive: {
+    borderColor: '#00ff87',
+    backgroundColor: 'rgba(0, 255, 135, 0.16)',
+  },
+  diffPillText: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#94a3b8',
+  },
+  diffPillTextActive: {
+    color: '#00ff87',
+    fontWeight: '900',
+  },
+  onlineSubRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 4,
   },
 });

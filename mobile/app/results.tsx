@@ -16,6 +16,8 @@ export default function ResultsScreen() {
   const summary = useGameStore((s) => s.summary);
   const rematchRequests = useGameStore((s) => s.rematchRequests);
   const resetGame = useGameStore((s) => s.resetGame);
+  const gameMode = useGameStore((s) => s.gameMode);
+  const shuffleBoard = useGameStore((s) => s.shuffleBoard);
 
   const playerId = usePlayerStore((s) => s.playerId);
   const { requestRematch } = useGame();
@@ -24,9 +26,16 @@ export default function ResultsScreen() {
 
   const isWinner = winnerId === playerId;
   const isDraw = resultType === 'draw';
+  const isBotMode = gameMode === 'bot';
   const hasRequestedRematch = rematchRequests.includes(playerId);
 
   const handleRematch = async () => {
+    if (isBotMode) {
+      resetGame();
+      shuffleBoard();
+      router.replace('/board-setup');
+      return;
+    }
     setRequestingRematch(true);
     await requestRematch();
     setRequestingRematch(false);
@@ -51,6 +60,9 @@ export default function ResultsScreen() {
           }
           style={styles.bannerCard}
         >
+          {isWinner && (
+            <Text style={styles.confettiBanner}>🎉 ✨ 🏆 ✨ 🎉</Text>
+          )}
           <View style={styles.iconCircle}>
             {isWinner ? (
               <Trophy size={56} color="#ffd700" />
@@ -67,7 +79,7 @@ export default function ResultsScreen() {
 
           <Text style={styles.bannerSubtitle}>
             {isWinner
-              ? 'Congratulations! You achieved 5 lines first!'
+              ? 'Congratulations! You achieved 5 lines first! (+50 Coins)'
               : isDraw
               ? 'Both warriors completed 5 lines on the exact same call!'
               : 'Better luck next time. Challenge them to a rematch!'}
@@ -111,19 +123,21 @@ export default function ResultsScreen() {
         <View style={styles.actions}>
           <GameButton
             title={
-              hasRequestedRematch
+              isBotMode
+                ? 'Play Again vs Bot'
+                : hasRequestedRematch
                 ? 'Rematch Requested (Waiting for opponent...)'
                 : 'Request Rematch'
             }
             variant="primary"
             onPress={handleRematch}
             loading={requestingRematch}
-            disabled={hasRequestedRematch}
+            disabled={!isBotMode && hasRequestedRematch}
             icon={<RotateCcw size={18} color="#ffffff" />}
           />
 
           <GameButton
-            title="Return to Home"
+            title="Return to Game Hub"
             variant="outline"
             onPress={handleHome}
             icon={<Home size={18} color="#a5b4fc" />}
@@ -150,6 +164,11 @@ const styles = StyleSheet.create({
     padding: 24,
     alignItems: 'center',
     marginVertical: 12,
+  },
+  confettiBanner: {
+    fontSize: 22,
+    marginBottom: 8,
+    letterSpacing: 4,
   },
   iconCircle: {
     width: 90,

@@ -14,6 +14,7 @@ import { LogIn, KeyRound } from 'lucide-react-native';
 import { GameHeader } from '../components/GameHeader';
 import { GameButton } from '../components/GameButton';
 import { useRoom } from '../hooks/useRoom';
+import { useGameStore } from '../store/gameStore';
 
 export default function JoinRoomScreen() {
   const router = useRouter();
@@ -35,7 +36,13 @@ export default function JoinRoomScreen() {
       setError(null);
       const res = await joinRoom(trimmed);
       if (res.success) {
-        router.replace('/board-setup');
+        const joinedGameType =
+          res.gameType || useGameStore.getState().selectedGame || 'bingo';
+        if (joinedGameType === 'bingo') {
+          router.replace('/board-setup');
+        } else {
+          router.replace('/lobby');
+        }
       } else {
         setError(res.error || 'Failed to join room');
       }
@@ -62,7 +69,7 @@ export default function JoinRoomScreen() {
 
             <Text style={styles.title}>Enter 6-Digit Code</Text>
             <Text style={styles.subtitle}>
-              Ask your friend for their unique room code
+              Works for Bingo, Chess, and Ludo rooms
             </Text>
 
             <View style={styles.inputContainer}>
@@ -83,7 +90,7 @@ export default function JoinRoomScreen() {
             </View>
 
             <GameButton
-              title="Enter Battle"
+              title="Enter Room"
               onPress={handleJoin}
               loading={loading}
               disabled={roomCode.trim().length !== 6}

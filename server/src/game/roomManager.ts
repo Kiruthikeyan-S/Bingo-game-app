@@ -1,16 +1,29 @@
-import { Player, RoomState, BoardArray } from '../../../shared/types';
+import {
+  Player,
+  RoomState,
+  BoardArray,
+  GameType,
+  ChessState,
+  LudoState,
+} from '../../../shared/types';
 import { BingoEngine } from './bingoEngine';
+import { ChessEngine } from '../../../shared/engines/chessEngine';
+import { LudoEngine } from '../../../shared/engines/ludoEngine';
 
 export interface RoomSession {
   roomCode: string;
+  gameType: GameType;
+  maxPlayers: number;
   hostPlayerId: string;
   players: Map<string, Player>;
-  playerOrder: string[]; // [p1, p2]
+  playerOrder: string[]; // [p1, p2, ...]
   boards: Map<string, BoardArray>;
   status: RoomState['status'];
   currentTurnPlayerId: string | null;
   calledNumbers: number[];
   playerLines: Map<string, number>;
+  chessState: ChessState | null;
+  ludoState: LudoState | null;
   winnerId: string | null;
   resultType: RoomState['resultType'];
   rematchRequests: Set<string>;
@@ -31,7 +44,7 @@ export class RoomManager {
    * Generates a unique 6-character uppercase alphanumeric room code.
    */
   public generateRoomCode(): string {
-    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // exclude confusing chars like 0, O, 1, I
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
     let code: string;
     let attempts = 0;
     do {
@@ -50,22 +63,40 @@ export class RoomManager {
 
   public createRoom(
     socketId: string,
-    playerData: { username: string; avatarUrl: string; playerId?: string }
+    playerData: {
+      username: string;
+      avatarUrl: string;
+      playerId?: string;
+      gameType?: GameType;
+      maxPlayers?: number;
+    }
   ): { room: RoomSession; player: Player } {
     const roomCode = this.generateRoomCode();
-    const playerId = playerData.playerId || `p_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+    const playerId =
+      playerData.playerId ||
+      `p_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+
+    const gameType: GameType = playerData.gameType || 'bingo';
+    const maxPlayers =
+      gameType === 'chess'
+        ? 2
+        : Math.min(4, Math.max(2, playerData.maxPlayers || 2));
 
     const player: Player = {
       id: playerId,
       socketId,
       username: playerData.username,
-      avatarUrl: playerData.avatarUrl || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=120',
+      avatarUrl:
+        playerData.avatarUrl ||
+        'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=120',
       isReady: false,
       isConnected: true,
     };
 
     const room: RoomSession = {
       roomCode,
+      gameType,
+      maxPlayers,
       hostPlayerId: playerId,
       players: new Map([[playerId, player]]),
       playerOrder: [playerId],
@@ -74,6 +105,8 @@ export class RoomManager {
       currentTurnPlayerId: null,
       calledNumbers: [],
       playerLines: new Map([[playerId, 0]]),
+      chessState: null,
+      ludoState: null,
       winnerId: null,
       resultType: null,
       rematchRequests: new Set(),
@@ -105,7 +138,6 @@ export class RoomManager {
       existingPlayer.socketId = socketId;
       existingPlayer.isConnected = true;
 
-      // Cancel disconnect timer if active
       const timer = room.disconnectTimers.get(payload.playerId);
       if (timer) {
         clearTimeout(timer);
@@ -116,21 +148,27 @@ export class RoomManager {
       return { success: true, room, player: existingPlayer };
     }
 
-    // Rejects if room already has 2 players
-    if (room.players.size >= 2) {
-      return { success: false, error: 'Room is already full (maximum 2 players).' };
+    if (room.players.size >= room.maxPlayers) {
+      return {
+        success: false,
+        error: `Room is already full (maximum ${room.maxPlayers} players).`,
+      };
     }
 
     if (room.status !== 'waiting' && room.status !== 'ready') {
       return { success: false, error: 'Game has already started in this room.' };
     }
 
-    const playerId = payload.playerId || `p_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+    const playerId =
+      payload.playerId ||
+      `p_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
     const player: Player = {
       id: playerId,
       socketId,
       username: payload.username,
-      avatarUrl: payload.avatarUrl || 'https://images.unsplash.com/photo-1570295999919-56ceb5ecca61?w=120',
+      avatarUrl:
+        payload.avatarUrl ||
+        'https://images.unsplash.com/photo-1570295999919-56ceb5ecca61?w=120',
       isReady: false,
       isConnected: true,
     };
@@ -160,8 +198,7 @@ export class RoomManager {
 
     player.isReady = isReady;
 
-    // Check if both players are ready
-    if (room.players.size === 2) {
+    if (room.players.size >= 2) {
       const allReady = Array.from(room.players.values()).every((p) => p.isReady);
       if (allReady && room.status === 'waiting') {
         room.status = 'ready';
@@ -198,15 +235,20 @@ export class RoomManager {
 
   public canStartGame(room: RoomSession): { canStart: boolean; reason?: string } {
     if (room.players.size < 2) {
-      return { canStart: false, reason: 'Waiting for second player to join' };
+      return { canStart: false, reason: 'Waiting for opponent to join' };
     }
     const allReady = Array.from(room.players.values()).every((p) => p.isReady);
     if (!allReady) {
-      return { canStart: false, reason: 'Both players must confirm ready status' };
+      return { canStart: false, reason: 'All players must confirm ready status' };
     }
-    for (const pId of room.playerOrder) {
-      if (!room.boards.has(pId)) {
-        return { canStart: false, reason: `Player ${room.players.get(pId)?.username} has not submitted their board layout` };
+    if (room.gameType === 'bingo') {
+      for (const pId of room.playerOrder) {
+        if (!room.boards.has(pId)) {
+          return {
+            canStart: false,
+            reason: `Player ${room.players.get(pId)?.username} has not submitted their board layout`,
+          };
+        }
       }
     }
     return { canStart: true };
@@ -226,13 +268,19 @@ export class RoomManager {
     room.winnerId = null;
     room.resultType = null;
     room.rematchRequests.clear();
-
-    // Player 1 starts
     room.currentTurnPlayerId = room.playerOrder[0];
 
-    // Reset lines
     for (const pId of room.playerOrder) {
       room.playerLines.set(pId, 0);
+    }
+
+    if (room.gameType === 'chess') {
+      const [whiteId, blackId] = room.playerOrder;
+      room.chessState = ChessEngine.createInitialState(whiteId, blackId);
+    } else if (room.gameType === 'ludo') {
+      room.ludoState = LudoEngine.createInitialState(room.playerOrder);
+      const firstColor = room.ludoState.currentTurnColor;
+      room.currentTurnPlayerId = room.ludoState.colorPlayerMap[firstColor];
     }
 
     return { success: true, room };
@@ -253,7 +301,6 @@ export class RoomManager {
 
     player.isConnected = false;
 
-    // If game is in progress, start grace timer
     if (room.status === 'playing') {
       const timer = setTimeout(() => {
         onGraceExpired(room, meta.playerId);
@@ -295,12 +342,10 @@ export class RoomManager {
     if (room.players.size === 0) {
       this.rooms.delete(room.roomCode);
     } else {
-      // Reassign host if host left
       if (room.hostPlayerId === meta.playerId && room.playerOrder.length > 0) {
         room.hostPlayerId = room.playerOrder[0];
       }
       if (room.status === 'playing') {
-        // Player left during match -> forfeit
         const remainingPlayerId = room.playerOrder[0];
         room.status = 'finished';
         room.winnerId = remainingPlayerId;
@@ -339,6 +384,8 @@ export class RoomManager {
     return {
       roomId: room.roomCode,
       roomCode: room.roomCode,
+      gameType: room.gameType,
+      maxPlayers: room.maxPlayers,
       hostPlayerId: room.hostPlayerId,
       players: playersObj,
       playerOrder: [...room.playerOrder],
@@ -347,6 +394,8 @@ export class RoomManager {
       calledNumbers: [...room.calledNumbers],
       playerBoards: boardsObj,
       playerLines: linesObj,
+      chessState: room.chessState,
+      ludoState: room.ludoState,
       winnerId: room.winnerId,
       resultType: room.resultType,
       rematchRequests: Array.from(room.rematchRequests),

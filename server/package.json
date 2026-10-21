@@ -9,11 +9,17 @@
     "dev": "nodemon --watch src --exec ts-node src/index.ts",
     "test": "jest --runInBand --detectOpenHandles"
   },
-  "keywords": ["bingo", "multiplayer", "socket.io", "react-native"],
+  "keywords": [
+    "bingo",
+    "multiplayer",
+    "socket.io",
+    "react-native"
+  ],
   "author": "Bingo Battle Team",
   "license": "MIT",
   "dependencies": {
     "@supabase/supabase-js": "^2.49.1",
+    "chess.js": "^1.0.0-beta.8",
     "cors": "^2.8.5",
     "dotenv": "^16.4.7",
     "express": "^4.21.2",

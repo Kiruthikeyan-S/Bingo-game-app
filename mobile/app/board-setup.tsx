@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, Alert } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Shuffle, RotateCcw, Lock, Check, Clock } from 'lucide-react-native';
+import { Shuffle, RotateCcw, Lock, Check, Clock, Bot } from 'lucide-react-native';
 import { GameHeader } from '../components/GameHeader';
 import { BingoBoard } from '../components/BingoBoard';
 import { GameButton } from '../components/GameButton';
@@ -19,14 +19,17 @@ export default function BoardSetupScreen() {
   const shuffleBoard = useGameStore((s) => s.shuffleBoard);
   const setBoardConfirmed = useGameStore((s) => s.setBoardConfirmed);
   const setMyBoard = useGameStore((s) => s.setMyBoard);
+  const gameMode = useGameStore((s) => s.gameMode);
+  const botDifficulty = useGameStore((s) => s.botDifficulty);
 
-  const { players, toggleReady, isReady } = useRoom();
+  const { players, toggleReady } = useRoom();
   const { submitBoard } = useGame();
   const playerId = usePlayerStore((s) => s.playerId);
 
   const [selectedCellIndex, setSelectedCellIndex] = useState<number | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
+  const isBotMode = gameMode === 'bot';
   const opponent = Object.values(players).find((p) => p.id !== playerId);
 
   const handleCellPress = (number: number, index: number) => {
@@ -57,7 +60,11 @@ export default function BoardSetupScreen() {
       const res = await submitBoard(myBoard);
       if (res.success) {
         setBoardConfirmed(true);
-        await toggleReady();
+        if (isBotMode) {
+          router.replace('/game');
+        } else {
+          await toggleReady();
+        }
       } else {
         Alert.alert('Error', res.error || 'Failed to submit board layout');
       }
@@ -80,9 +87,18 @@ export default function BoardSetupScreen() {
         {/* Opponent Status Banner */}
         <View style={styles.opponentBanner}>
           <Text style={styles.bannerLabel}>OPPONENT:</Text>
-          <Text style={styles.opponentName}>{opponent?.username || 'Opponent'}</Text>
-          <View style={[styles.statusPill, opponent?.isReady ? styles.pillReady : styles.pillArranging]}>
-            {opponent?.isReady ? (
+          <Text style={styles.opponentName}>
+            {isBotMode
+              ? `🤖 Bingo Bot (${botDifficulty.toUpperCase()})`
+              : opponent?.username || 'Opponent'}
+          </Text>
+          <View
+            style={[
+              styles.statusPill,
+              isBotMode || opponent?.isReady ? styles.pillReady : styles.pillArranging,
+            ]}
+          >
+            {isBotMode || opponent?.isReady ? (
               <>
                 <Check size={12} color="#10b981" />
                 <Text style={styles.pillTextReady}>READY</Text>
@@ -136,10 +152,10 @@ export default function BoardSetupScreen() {
             </View>
 
             <GameButton
-              title="Lock & Confirm Board"
+              title={isBotMode ? 'Start Bot Battle' : 'Lock & Confirm Board'}
               onPress={handleConfirmBoard}
               loading={submitting}
-              icon={<Lock size={18} color="#ffffff" />}
+              icon={isBotMode ? <Bot size={18} color="#ffffff" /> : <Lock size={18} color="#ffffff" />}
               style={styles.confirmBtn}
             />
           </View>
@@ -148,7 +164,7 @@ export default function BoardSetupScreen() {
             <Check size={28} color="#10b981" />
             <Text style={styles.lockedTitle}>Your Board is Confirmed!</Text>
             <Text style={styles.lockedSubtitle}>
-              Match will launch automatically as soon as both players lock in.
+              Match will launch automatically as soon as all players lock in.
             </Text>
           </View>
         )}

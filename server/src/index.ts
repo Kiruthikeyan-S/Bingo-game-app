@@ -24,7 +24,7 @@ app.get('/health', (req, res) => {
   res.json({
     status: 'healthy',
     timestamp: new Date().toISOString(),
-    service: 'Bingo Battle Multiplayer Server',
+    service: 'Game Hub Multiplayer Server (Bingo • Chess • Ludo)',
   });
 });
 
@@ -35,6 +35,17 @@ app.get('/api/leaderboard', async (req, res) => {
     res.json({ success: true, data: leaderboard });
   } catch (err: any) {
     res.status(500).json({ success: false, error: err.message || 'Error fetching leaderboard' });
+  }
+});
+
+// Match History API endpoint
+app.get('/api/history', async (req, res) => {
+  try {
+    const playerId = typeof req.query.playerId === 'string' ? req.query.playerId : undefined;
+    const history = await DatabaseService.getMatchHistory(playerId);
+    res.json({ success: true, data: history });
+  } catch (err: any) {
+    res.status(500).json({ success: false, error: err.message || 'Error fetching history' });
   }
 });
 
@@ -53,8 +64,10 @@ const roomManager = new RoomManager();
 // Setup handlers
 setupSocketHandlers(io, roomManager);
 
-server.listen(PORT, () => {
-  console.log(`[Bingo Battle Server] Listening on port ${PORT}`);
-});
+if (require.main === module) {
+  server.listen(PORT, () => {
+    console.log(`[Game Hub Server] Listening on port ${PORT}`);
+  });
+}
 
 export { app, server, io, roomManager };

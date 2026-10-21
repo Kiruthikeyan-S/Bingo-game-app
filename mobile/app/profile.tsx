@@ -21,6 +21,7 @@ import {
 } from 'lucide-react-native';
 import { GameHeader } from '../components/GameHeader';
 import { GameButton } from '../components/GameButton';
+import { BottomNavBar } from '../components/BottomNavBar';
 import { usePlayerStore } from '../store/playerStore';
 
 export default function ProfileScreen() {
@@ -128,6 +129,7 @@ export default function ProfileScreen() {
           />
         </View>
       </ScrollView>
+      <BottomNavBar />
     </SafeAreaView>
   );
 }
@@ -139,6 +141,7 @@ const styles = StyleSheet.create({
   },
   content: {
     padding: 20,
+    paddingBottom: 110,
     gap: 16,
   },
   profileCard: {

@@ -6,7 +6,7 @@ import {
   ActivityIndicator,
   ScrollView,
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Users, AlertCircle } from 'lucide-react-native';
 import { GameHeader } from '../components/GameHeader';
@@ -16,20 +16,31 @@ import { GameButton } from '../components/GameButton';
 import { useRoom } from '../hooks/useRoom';
 import { useGameStore } from '../store/gameStore';
 import { usePlayerStore } from '../store/playerStore';
+import { GameType } from '../../shared/types';
 
 export default function CreateRoomScreen() {
   const router = useRouter();
+  const params = useLocalSearchParams<{ gameType?: string }>();
   const { createRoom, leaveRoom, roomCode, players } = useRoom();
+  const selectedGame = useGameStore((s) => s.selectedGame);
+  const setSelectedGame = useGameStore((s) => s.setSelectedGame);
   const playerId = usePlayerStore((s) => s.playerId);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  const activeGameType: GameType =
+    (params.gameType as GameType) || selectedGame || 'bingo';
 
   useEffect(() => {
     let isMounted = true;
     const initRoom = async () => {
       try {
         setLoading(true);
-        const res = await createRoom();
+        if (params.gameType) {
+          setSelectedGame(params.gameType as GameType);
+        }
+        const maxPlayers = activeGameType === 'chess' ? 2 : 4;
+        const res = await createRoom(activeGameType, maxPlayers);
         if (!isMounted) return;
         if (!res.success) {
           setError(res.error || 'Failed to create room');
@@ -47,13 +58,17 @@ export default function CreateRoomScreen() {
     };
   }, []);
 
-  // When second player joins, navigate to board setup
+  // When second player joins, navigate to board-setup (for Bingo) or lobby (for Chess/Ludo)
   useEffect(() => {
     const playerCount = Object.keys(players).length;
     if (playerCount >= 2) {
-      router.replace('/board-setup');
+      if (activeGameType === 'bingo') {
+        router.replace('/board-setup');
+      } else {
+        router.replace('/lobby');
+      }
     }
-  }, [players, router]);
+  }, [players, router, activeGameType]);
 
   const handleCancel = async () => {
     await leaveRoom();
@@ -63,11 +78,18 @@ export default function CreateRoomScreen() {
   const myPlayer = players[playerId];
   const opponent = Object.values(players).find((p) => p.id !== playerId);
 
+  const gameLabel =
+    activeGameType === 'bingo'
+      ? 'Bingo 5×5'
+      : activeGameType === 'chess'
+      ? 'Royal Chess'
+      : 'Ludo Royale';
+
   return (
     <SafeAreaView style={styles.safeArea}>
       <GameHeader
-        title="Create Room"
-        subtitle="Invite an opponent"
+        title={`Host ${gameLabel}`}
+        subtitle="Private Room Code"
         onBackPress={handleCancel}
       />
 
@@ -75,7 +97,9 @@ export default function CreateRoomScreen() {
         {loading ? (
           <View style={styles.centerContainer}>
             <ActivityIndicator size="large" color="#00e5ff" />
-            <Text style={styles.loadingText}>Creating battle room...</Text>
+            <Text style={styles.loadingText}>
+              Creating {gameLabel} room...
+            </Text>
           </View>
         ) : error ? (
           <View style={styles.centerContainer}>
@@ -95,17 +119,24 @@ export default function CreateRoomScreen() {
             <View style={styles.playersSection}>
               <View style={styles.sectionHeader}>
                 <Users size={18} color="#a5b4fc" />
-                <Text style={styles.sectionTitle}>PLAYERS IN ROOM (1/2)</Text>
+                <Text style={styles.sectionTitle}>
+                  PLAYERS IN ROOM ({Object.keys(players).length}/
+                  {activeGameType === 'chess' ? 2 : 4})
+                </Text>
               </View>
 
               <PlayerCard player={myPlayer} isHost={true} />
-              <PlayerCard player={opponent} emptyPlaceholderText="Waiting for opponent to join..." />
+              <PlayerCard
+                player={opponent}
+                emptyPlaceholderText="Waiting for opponent to join..."
+              />
             </View>
 
             <View style={styles.waitingNotice}>
               <ActivityIndicator size="small" color="#00e5ff" />
               <Text style={styles.waitingText}>
-                Share the 6-character room code above. The match will setup once Player 2 joins!
+                Share the 6-character room code above. The {gameLabel} lobby
+                will open as soon as a friend joins!
               </Text>
             </View>
 

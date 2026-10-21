@@ -1,4 +1,4 @@
--- Bingo Battle Database Schema
+-- Game Hub (Bingo • Chess • Ludo) Database Schema
 -- Run this in your Supabase SQL Editor
 
 -- 1. Profiles Table
@@ -6,6 +6,7 @@ CREATE TABLE IF NOT EXISTS public.profiles (
   id TEXT PRIMARY KEY,
   username TEXT NOT NULL,
   avatar_url TEXT,
+  coins INT DEFAULT 500,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
@@ -13,11 +14,12 @@ CREATE TABLE IF NOT EXISTS public.profiles (
 CREATE TABLE IF NOT EXISTS public.matches (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   room_code VARCHAR(6) NOT NULL,
+  game_type TEXT NOT NULL DEFAULT 'bingo', -- 'bingo', 'chess', 'ludo'
   player_1_id TEXT NOT NULL,
   player_2_id TEXT NOT NULL,
   status TEXT NOT NULL DEFAULT 'finished',
   winner_id TEXT,
-  result_type TEXT NOT NULL, -- 'win', 'draw', 'forfeit'
+  result_type TEXT NOT NULL, -- 'win', 'draw', 'forfeit', 'checkmate', 'stalemate', 'resign'
   started_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   finished_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
@@ -27,7 +29,7 @@ CREATE TABLE IF NOT EXISTS public.match_players (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   match_id UUID REFERENCES public.matches(id) ON DELETE CASCADE,
   player_id TEXT NOT NULL,
-  board_layout JSONB NOT NULL,
+  board_layout JSONB NOT NULL DEFAULT '[]'::jsonb,
   lines_completed INT DEFAULT 0,
   final_score INT DEFAULT 0
 );
@@ -37,7 +39,8 @@ CREATE TABLE IF NOT EXISTS public.match_moves (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   match_id UUID REFERENCES public.matches(id) ON DELETE CASCADE,
   player_id TEXT NOT NULL,
-  number_called INT NOT NULL,
+  number_called INT DEFAULT 0,
+  move_notation TEXT,
   move_number INT NOT NULL,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
@@ -55,6 +58,7 @@ CREATE TABLE IF NOT EXISTS public.player_stats (
 
 -- Indices for performance
 CREATE INDEX IF NOT EXISTS idx_matches_room_code ON public.matches(room_code);
+CREATE INDEX IF NOT EXISTS idx_matches_game_type ON public.matches(game_type);
 CREATE INDEX IF NOT EXISTS idx_player_stats_wins ON public.player_stats(wins DESC);
 CREATE INDEX IF NOT EXISTS idx_match_moves_match_id ON public.match_moves(match_id);
 

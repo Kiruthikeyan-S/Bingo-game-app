@@ -11,6 +11,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Trophy, Medal, Crown } from 'lucide-react-native';
 import { GameHeader } from '../components/GameHeader';
+import { BottomNavBar } from '../components/BottomNavBar';
 import { fetchLeaderboard, LeaderboardEntry } from '../services/api';
 import { usePlayerStore } from '../store/playerStore';
 
@@ -106,6 +107,7 @@ export default function LeaderboardScreen() {
           })}
         </ScrollView>
       )}
+      <BottomNavBar />
     </SafeAreaView>
   );
 }
@@ -117,6 +119,7 @@ const styles = StyleSheet.create({
   },
   content: {
     padding: 16,
+    paddingBottom: 110,
   },
   centerContainer: {
     flex: 1,

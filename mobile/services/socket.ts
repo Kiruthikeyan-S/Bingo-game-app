@@ -1,10 +1,29 @@
 import { io, Socket } from 'socket.io-client';
-import { ClientToServerEvents, ServerToClientEvents, BoardArray } from '../../shared/types';
+import Constants from 'expo-constants';
+import {
+  ClientToServerEvents,
+  ServerToClientEvents,
+  BoardArray,
+  GameType,
+  ChessMoveInput,
+} from '../../shared/types';
 import { useGameStore } from '../store/gameStore';
 
-// Default backend server URL
-// For physical devices on local network, use the computer's LAN IP e.g. http://192.168.1.X:3001
-const DEFAULT_SERVER_URL = process.env.EXPO_PUBLIC_SERVER_URL || 'http://localhost:3001';
+function getDefaultServerUrl(): string {
+  if (process.env.EXPO_PUBLIC_SERVER_URL) {
+    return process.env.EXPO_PUBLIC_SERVER_URL;
+  }
+  const hostUri = Constants.expoConfig?.hostUri;
+  if (hostUri) {
+    const host = hostUri.split(':')[0];
+    if (host) {
+      return `http://${host}:3001`;
+    }
+  }
+  return 'http://localhost:3001';
+}
+
+const DEFAULT_SERVER_URL = getDefaultServerUrl();
 
 class SocketService {
   private socket: Socket<ServerToClientEvents, ClientToServerEvents> | null = null;
@@ -55,7 +74,9 @@ class SocketService {
     this.socket.on('connect_error', (err) => {
       console.warn('[Socket] Connection error:', err.message);
       useGameStore.getState().setConnected(false);
-      useGameStore.getState().setConnectionError('Cannot reach multiplayer server. Check network connection.');
+      useGameStore
+        .getState()
+        .setConnectionError('Cannot reach multiplayer server. Check network connection.');
     });
 
     return this.socket;
@@ -76,8 +97,19 @@ class SocketService {
     useGameStore.getState().setConnected(false);
   }
 
-  // Socket Actions with Promise wrappers
-  public createRoom(payload: { username: string; avatarUrl: string }): Promise<{ success: boolean; roomCode?: string; playerId?: string; error?: string }> {
+  public createRoom(payload: {
+    username: string;
+    avatarUrl: string;
+    playerId?: string;
+    gameType?: GameType;
+    maxPlayers?: number;
+  }): Promise<{
+    success: boolean;
+    roomCode?: string;
+    playerId?: string;
+    gameType?: GameType;
+    error?: string;
+  }> {
     const s = this.getSocket();
     return new Promise((resolve) => {
       if (!s) return resolve({ success: false, error: 'Socket not connected' });
@@ -85,7 +117,18 @@ class SocketService {
     });
   }
 
-  public joinRoom(payload: { roomCode: string; username: string; avatarUrl: string; playerId?: string }): Promise<{ success: boolean; roomCode?: string; playerId?: string; error?: string }> {
+  public joinRoom(payload: {
+    roomCode: string;
+    username: string;
+    avatarUrl: string;
+    playerId?: string;
+  }): Promise<{
+    success: boolean;
+    roomCode?: string;
+    playerId?: string;
+    gameType?: GameType;
+    error?: string;
+  }> {
     const s = this.getSocket();
     return new Promise((resolve) => {
       if (!s) return resolve({ success: false, error: 'Socket not connected' });
@@ -114,6 +157,44 @@ class SocketService {
     return new Promise((resolve) => {
       if (!s) return resolve({ success: false, error: 'Socket not connected' });
       s.emit('game:callNumber', { number }, (res) => resolve(res));
+    });
+  }
+
+  public chessMove(move: ChessMoveInput): Promise<{ success: boolean; error?: string }> {
+    const s = this.getSocket();
+    return new Promise((resolve) => {
+      if (!s) return resolve({ success: false, error: 'Socket not connected' });
+      s.emit('chess:move', move, (res) => resolve(res));
+    });
+  }
+
+  public chessResign(): Promise<{ success: boolean; error?: string }> {
+    const s = this.getSocket();
+    return new Promise((resolve) => {
+      if (!s) return resolve({ success: false, error: 'Socket not connected' });
+      s.emit('chess:resign', (res) => resolve(res || { success: true }));
+    });
+  }
+
+  public ludoRollDice(): Promise<{
+    success: boolean;
+    diceValue?: number;
+    legalTokenIds?: number[];
+    autoSkipped?: boolean;
+    error?: string;
+  }> {
+    const s = this.getSocket();
+    return new Promise((resolve) => {
+      if (!s) return resolve({ success: false, error: 'Socket not connected' });
+      s.emit('ludo:rollDice', (res) => resolve(res));
+    });
+  }
+
+  public ludoMoveToken(tokenId: number): Promise<{ success: boolean; error?: string }> {
+    const s = this.getSocket();
+    return new Promise((resolve) => {
+      if (!s) return resolve({ success: false, error: 'Socket not connected' });
+      s.emit('ludo:moveToken', { tokenId }, (res) => resolve(res));
     });
   }
 

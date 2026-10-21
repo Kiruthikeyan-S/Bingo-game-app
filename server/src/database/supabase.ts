@@ -1,6 +1,7 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import dotenv from 'dotenv';
 import { RoomSession } from '../game/roomManager';
+import { MatchHistoryItem } from '../../../shared/types';
 
 dotenv.config();
 
@@ -22,7 +23,6 @@ if (supabaseUrl && supabaseServiceKey) {
   console.log('[Supabase] Credentials not provided; running in local in-memory persistence mode');
 }
 
-// In-memory fallback stores
 const inMemoryProfiles = new Map<string, { id: string; username: string; avatar_url: string }>();
 const inMemoryStats = new Map<
   string,
@@ -36,12 +36,17 @@ const inMemoryStats = new Map<
     win_percentage: number;
   }
 >();
+const inMemoryHistory: Array<MatchHistoryItem & { playerId: string }> = [];
 
 export class DatabaseService {
   /**
    * Upserts a player profile.
    */
-  public static async saveProfile(playerId: string, username: string, avatarUrl: string): Promise<void> {
+  public static async saveProfile(
+    playerId: string,
+    username: string,
+    avatarUrl: string
+  ): Promise<void> {
     inMemoryProfiles.set(playerId, { id: playerId, username, avatar_url: avatarUrl });
 
     if (!supabase) return;
@@ -57,19 +62,25 @@ export class DatabaseService {
   }
 
   /**
-   * Persists a finished match and updates player stats.
+   * Persists a finished match and updates player stats across Bingo, Chess, and Ludo.
    */
   public static async recordMatch(room: RoomSession): Promise<void> {
-    const [p1Id, p2Id] = room.playerOrder;
-    const p1 = room.players.get(p1Id);
-    const p2 = room.players.get(p2Id);
-    if (!p1 || !p2) return;
+    const playerIds = room.playerOrder;
+    if (playerIds.length < 2) return;
 
     const winnerId = room.winnerId;
-    const isDraw = room.resultType === 'draw';
+    const isDraw = !winnerId || room.resultType === 'draw' || room.resultType === 'stalemate';
+    const movesCount =
+      room.gameType === 'bingo'
+        ? room.calledNumbers.length
+        : room.gameType === 'chess'
+        ? room.chessState?.moveHistory.length || 0
+        : 24;
 
-    // Update in-memory stats
-    for (const p of [p1, p2]) {
+    for (const pId of playerIds) {
+      const p = room.players.get(pId);
+      if (!p) continue;
+
       const existing = inMemoryStats.get(p.id) || {
         player_id: p.id,
         username: p.username,
@@ -83,12 +94,21 @@ export class DatabaseService {
       existing.games_played += 1;
       existing.username = p.username;
 
+      let result: 'win' | 'loss' | 'draw' = 'loss';
+      let coinsEarned = 15;
+
       if (isDraw) {
         existing.draws += 1;
+        result = 'draw';
+        coinsEarned = 35;
       } else if (winnerId === p.id) {
         existing.wins += 1;
+        result = 'win';
+        coinsEarned = 100;
       } else {
         existing.losses += 1;
+        result = 'loss';
+        coinsEarned = 15;
       }
 
       existing.win_percentage = Number(
@@ -96,16 +116,35 @@ export class DatabaseService {
       );
 
       inMemoryStats.set(p.id, existing);
+
+      const opponentNames = playerIds
+        .filter((id) => id !== pId)
+        .map((id) => room.players.get(id)?.username || 'Opponent')
+        .join(', ');
+
+      inMemoryHistory.unshift({
+        id: `m_${Date.now()}_${pId}`,
+        playerId: pId,
+        gameType: room.gameType,
+        mode: 'online',
+        opponentName: opponentNames || 'Opponent',
+        result,
+        resultReason: room.resultType || result,
+        coinsEarned,
+        movesCount,
+        timestamp: new Date().toISOString(),
+      });
     }
 
     if (!supabase) return;
 
     try {
-      // 1. Insert match
+      const [p1Id, p2Id] = playerIds;
       const { data: matchData, error: matchError } = await supabase
         .from('matches')
         .insert({
           room_code: room.roomCode,
+          game_type: room.gameType,
           player_1_id: p1Id,
           player_2_id: p2Id,
           status: 'finished',
@@ -122,29 +161,11 @@ export class DatabaseService {
         return;
       }
 
-      const matchId = matchData.id;
-
-      // 2. Insert match_players
-      await supabase.from('match_players').insert([
-        {
-          match_id: matchId,
-          player_id: p1Id,
-          board_layout: room.boards.get(p1Id) || [],
-          lines_completed: room.playerLines.get(p1Id) || 0,
-        },
-        {
-          match_id: matchId,
-          player_id: p2Id,
-          board_layout: room.boards.get(p2Id) || [],
-          lines_completed: room.playerLines.get(p2Id) || 0,
-        },
-      ]);
-
-      // 3. Upsert player stats in Supabase
-      for (const p of [p1, p2]) {
-        const stats = inMemoryStats.get(p.id)!;
+      for (const pId of playerIds) {
+        const stats = inMemoryStats.get(pId);
+        if (!stats) continue;
         await supabase.from('player_stats').upsert({
-          player_id: p.id,
+          player_id: pId,
           games_played: stats.games_played,
           wins: stats.wins,
           losses: stats.losses,
@@ -158,6 +179,16 @@ export class DatabaseService {
   }
 
   /**
+   * Retrieves recent match history for a player (or global recent matches).
+   */
+  public static async getMatchHistory(playerId?: string): Promise<MatchHistoryItem[]> {
+    const filtered = playerId
+      ? inMemoryHistory.filter((item) => item.playerId === playerId)
+      : inMemoryHistory;
+    return filtered.slice(0, 30);
+  }
+
+  /**
    * Retrieves the leaderboard sorted by wins.
    */
   public static async getLeaderboard() {
@@ -165,7 +196,9 @@ export class DatabaseService {
       try {
         const { data, error } = await supabase
           .from('player_stats')
-          .select('player_id, games_played, wins, losses, draws, win_percentage, profiles(username, avatar_url)')
+          .select(
+            'player_id, games_played, wins, losses, draws, win_percentage, profiles(username, avatar_url)'
+          )
           .order('wins', { ascending: false })
           .limit(20);
 
@@ -186,7 +219,6 @@ export class DatabaseService {
       }
     }
 
-    // Fallback to in-memory stats
     return Array.from(inMemoryStats.values())
       .sort((a, b) => b.wins - a.wins)
       .map((row) => ({
