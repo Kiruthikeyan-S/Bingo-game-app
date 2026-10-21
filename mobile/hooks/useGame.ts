@@ -205,7 +205,7 @@ export function useGame() {
           },
           {
             playerId: botId,
-            username: botPlayer?.username || 'BingoBot',
+            username: botPlayer?.username || 'Computer',
             linesCompleted: outcome.p2Result.lineCount,
             isWinner: outcome.winnerId === botId,
             isDraw: outcome.resultType === 'draw',
@@ -225,7 +225,7 @@ export function useGame() {
           gameType: 'bingo',
           mode: 'bot',
           difficulty: store.botDifficulty,
-          opponentName: botPlayer?.username || 'BingoBot',
+          opponentName: botPlayer?.username || 'Computer',
           result:
             outcome.resultType === 'draw'
               ? 'draw'
@@ -246,7 +246,7 @@ export function useGame() {
     [playerId, username, hapticsEnabled, router]
   );
 
-  // Trigger Bingo Bot move automatically when it's Bot's turn in offline mode
+  // Trigger Bingo Computer move automatically when it's Computer's turn in offline mode
   useEffect(() => {
     if (
       gameMode !== 'bot' ||
@@ -269,8 +269,8 @@ export function useGame() {
         }
       },
       {
-        minDelayMs: 650,
-        maxDelayMs: 1150,
+        minDelayMs: 140,
+        maxDelayMs: 220,
         isGameActive: () =>
           !cancelled &&
           useGameStore.getState().status === 'playing' &&

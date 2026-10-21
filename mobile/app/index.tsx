@@ -2,7 +2,7 @@ import React, { useEffect } from 'react';
 import { View, Text, StyleSheet, ActivityIndicator } from 'react-native';
 import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Trophy, Flame } from 'lucide-react-native';
+import { Trophy, Shield } from 'lucide-react-native';
 import { usePlayerStore } from '../store/playerStore';
 
 export default function SplashScreen() {
@@ -16,38 +16,38 @@ export default function SplashScreen() {
       } else {
         router.replace('/login');
       }
-    }, 1500);
+    }, 1200);
 
     return () => clearTimeout(timer);
   }, [isRegistered, router]);
 
   return (
     <LinearGradient
-      colors={['#070b1e', '#11183c', '#1e1b4b']}
+      colors={['#050816', '#0f1636', '#1e1b4b']}
       style={styles.container}
     >
       <View style={styles.logoContainer}>
         <LinearGradient
-          colors={['#8b5cf6', '#6366f1', '#00e5ff']}
+          colors={['#6366f1', '#00e5ff']}
           style={styles.logoBadge}
         >
-          <Trophy size={54} color="#ffd700" />
+          <Trophy size={54} color="#050816" />
         </LinearGradient>
 
         <View style={styles.titleRow}>
-          <Text style={styles.titleBingo}>BINGO</Text>
-          <Text style={styles.titleBattle}>BATTLE</Text>
+          <Text style={styles.titleBingo}>GAME</Text>
+          <Text style={styles.titleBattle}>HUB</Text>
         </View>
 
         <View style={styles.subtitleRow}>
-          <Flame size={16} color="#00e5ff" />
-          <Text style={styles.subtitle}>REALTIME MULTIPLAYER</Text>
+          <Shield size={14} color="#00e5ff" />
+          <Text style={styles.subtitle}>BINGO | CHESS | LUDO</Text>
         </View>
       </View>
 
       <View style={styles.footer}>
         <ActivityIndicator color="#00e5ff" size="small" />
-        <Text style={styles.versionText}>Version 1.0.0 • Online 1v1</Text>
+        <Text style={styles.versionText}>Version 2.0.0</Text>
       </View>
     </LinearGradient>
   );
@@ -66,16 +66,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   logoBadge: {
-    width: 110,
-    height: 110,
-    borderRadius: 30,
+    width: 108,
+    height: 108,
+    borderRadius: 28,
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 24,
-    shadowColor: '#8b5cf6',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.5,
-    shadowRadius: 16,
     elevation: 8,
   },
   titleRow: {
@@ -102,10 +98,10 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   subtitle: {
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: '800',
     color: '#a5b4fc',
-    letterSpacing: 3,
+    letterSpacing: 2.5,
   },
   footer: {
     alignItems: 'center',

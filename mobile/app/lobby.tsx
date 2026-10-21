@@ -26,7 +26,7 @@ export default function LobbyScreen() {
 
   const gameLabel =
     selectedGame === 'bingo'
-      ? 'Bingo 5×5'
+      ? 'Bingo 5x5'
       : selectedGame === 'chess'
       ? 'Royal Chess'
       : 'Ludo Royale';
@@ -67,7 +67,7 @@ export default function LobbyScreen() {
         <View style={styles.actionButtons}>
           {selectedGame === 'bingo' && (
             <GameButton
-              title="Configure 5×5 Board"
+              title="Configure 5x5 Board"
               variant="outline"
               onPress={() => router.push('/board-setup')}
               icon={<Grid size={18} color="#00e5ff" />}

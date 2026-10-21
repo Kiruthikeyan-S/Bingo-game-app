@@ -112,7 +112,7 @@ export default function SettingsScreen() {
           </Text>
 
           <GameButton
-            title="Localhost (PC / Emulator) • :3001"
+            title="Localhost (PC / Emulator) - :3001"
             variant="outline"
             onPress={() => setPreset('http://localhost:3001')}
             icon={<Smartphone size={16} color="#a5b4fc" />}
@@ -120,7 +120,7 @@ export default function SettingsScreen() {
           />
 
           <GameButton
-            title="Android Emulator Loopback • 10.0.2.2:3001"
+            title="Android Emulator Loopback - 10.0.2.2:3001"
             variant="outline"
             onPress={() => setPreset('http://10.0.2.2:3001')}
             icon={<Smartphone size={16} color="#a5b4fc" />}

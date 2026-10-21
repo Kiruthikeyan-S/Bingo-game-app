@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, ScrollView } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Trophy, Frown, Equal, RotateCcw, Home, Sparkles } from 'lucide-react-native';
+import { Trophy, Frown, Equal, RotateCcw, Home, Award } from 'lucide-react-native';
 import { GameButton } from '../components/GameButton';
 import { useGameStore } from '../store/gameStore';
 import { usePlayerStore } from '../store/playerStore';
@@ -17,6 +17,7 @@ export default function ResultsScreen() {
   const rematchRequests = useGameStore((s) => s.rematchRequests);
   const resetGame = useGameStore((s) => s.resetGame);
   const gameMode = useGameStore((s) => s.gameMode);
+  const selectedGame = useGameStore((s) => s.selectedGame);
   const shuffleBoard = useGameStore((s) => s.shuffleBoard);
 
   const playerId = usePlayerStore((s) => s.playerId);
@@ -33,7 +34,13 @@ export default function ResultsScreen() {
     if (isBotMode) {
       resetGame();
       shuffleBoard();
-      router.replace('/board-setup');
+      if (selectedGame === 'chess') {
+        router.replace('/games/chess');
+      } else if (selectedGame === 'ludo') {
+        router.replace('/games/ludo');
+      } else {
+        router.replace('/board-setup');
+      }
       return;
     }
     setRequestingRematch(true);
@@ -60,9 +67,6 @@ export default function ResultsScreen() {
           }
           style={styles.bannerCard}
         >
-          {isWinner && (
-            <Text style={styles.confettiBanner}>🎉 ✨ 🏆 ✨ 🎉</Text>
-          )}
           <View style={styles.iconCircle}>
             {isWinner ? (
               <Trophy size={56} color="#ffd700" />
@@ -74,21 +78,21 @@ export default function ResultsScreen() {
           </View>
 
           <Text style={styles.bannerTitle}>
-            {isWinner ? 'BINGO VICTORY!' : isDraw ? 'MATCH DRAW!' : 'GAME OVER'}
+            {isWinner ? 'VICTORY' : isDraw ? 'MATCH DRAW' : 'GAME OVER'}
           </Text>
 
           <Text style={styles.bannerSubtitle}>
             {isWinner
-              ? 'Congratulations! You achieved 5 lines first! (+50 Coins)'
+              ? 'Congratulations! You won the match (+100 Coins).'
               : isDraw
-              ? 'Both warriors completed 5 lines on the exact same call!'
-              : 'Better luck next time. Challenge them to a rematch!'}
+              ? 'The match ended in a draw (+40 Coins).'
+              : 'Good effort. Play again to claim victory!'}
           </Text>
         </LinearGradient>
 
         {/* Player Summary Cards */}
         <View style={styles.scoreboardSection}>
-          <Text style={styles.sectionHeader}>FINAL MATCH SCORES</Text>
+          <Text style={styles.sectionHeader}>FINAL MATCH STANDINGS</Text>
           {summary.map((playerSummary) => {
             const isMe = playerSummary.playerId === playerId;
             return (
@@ -104,13 +108,14 @@ export default function ResultsScreen() {
                     {playerSummary.username} {isMe ? '(You)' : ''}
                   </Text>
                   <Text style={styles.scoreDetail}>
-                    Completed {playerSummary.linesCompleted} lines
+                    {playerSummary.detailText ||
+                      `Completed ${playerSummary.linesCompleted} lines`}
                   </Text>
                 </View>
 
                 {playerSummary.isWinner && (
                   <View style={styles.crownBadge}>
-                    <Sparkles size={14} color="#ffd700" />
+                    <Award size={14} color="#070b1e" />
                     <Text style={styles.crownText}>WINNER</Text>
                   </View>
                 )}
@@ -124,7 +129,7 @@ export default function ResultsScreen() {
           <GameButton
             title={
               isBotMode
-                ? 'Play Again vs Bot'
+                ? 'Play Again'
                 : hasRequestedRematch
                 ? 'Rematch Requested (Waiting for opponent...)'
                 : 'Request Rematch'
@@ -164,11 +169,6 @@ const styles = StyleSheet.create({
     padding: 24,
     alignItems: 'center',
     marginVertical: 12,
-  },
-  confettiBanner: {
-    fontSize: 22,
-    marginBottom: 8,
-    letterSpacing: 4,
   },
   iconCircle: {
     width: 90,

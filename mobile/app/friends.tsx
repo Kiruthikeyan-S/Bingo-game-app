@@ -12,6 +12,15 @@ import {
 import { router } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
+import {
+  Grid,
+  Crown,
+  Dices,
+  UserPlus,
+  Share2,
+  X,
+  Plus,
+} from 'lucide-react-native';
 import { usePlayerStore } from '../store/playerStore';
 import { useGameStore } from '../store/gameStore';
 import { GameType } from '../../shared/types';
@@ -35,10 +44,10 @@ const COLORS = {
   textDim: '#475569',
 };
 
-const GAME_OPTIONS: { id: GameType; label: string; icon: string; color: string }[] = [
-  { id: 'bingo', label: 'Bingo 5×5', icon: '🎯', color: COLORS.primary },
-  { id: 'chess', label: 'Royal Chess', icon: '♟️', color: '#818CF8' },
-  { id: 'ludo', label: 'Ludo Royale', icon: '🎲', color: '#10B981' },
+const GAME_OPTIONS: { id: GameType; label: string; color: string }[] = [
+  { id: 'bingo', label: 'Bingo 5x5', color: COLORS.primary },
+  { id: 'chess', label: 'Royal Chess', color: '#818CF8' },
+  { id: 'ludo', label: 'Classic Ludo', color: '#10B981' },
 ];
 
 export default function FriendsScreen() {
@@ -60,11 +69,11 @@ export default function FriendsScreen() {
     const gameMeta = GAME_OPTIONS.find((g) => g.id === selectedInviteGame)!;
     const codeMsg = roomCode
       ? `Join my private room [${roomCode}] in ${gameMeta.label}!`
-      : `Hey ${friendName}! Come play ${gameMeta.label} with me on GameHub Arena!`;
+      : `Hey ${friendName}! Come play ${gameMeta.label} with me on Game Hub!`;
 
     try {
       await Share.share({
-        message: `${codeMsg} — Invited by ${username}`,
+        message: `${codeMsg} - Invited by ${username}`,
       });
     } catch {
       // ignore
@@ -76,6 +85,12 @@ export default function FriendsScreen() {
     setSelectedGame(game);
     setGameMode('online');
     router.push({ pathname: '/create-room' as any, params: { gameType: game } });
+  };
+
+  const renderGameIcon = (id: GameType, color: string) => {
+    if (id === 'bingo') return <Grid size={14} color={color} />;
+    if (id === 'chess') return <Crown size={14} color={color} />;
+    return <Dices size={14} color={color} />;
   };
 
   return (
@@ -92,7 +107,7 @@ export default function FriendsScreen() {
         {/* Header */}
         <View style={styles.headerRow}>
           <View>
-            <Text style={styles.eyebrow}>SOCIAL SQUAD</Text>
+            <Text style={styles.eyebrow}>MULTIPLAYER SQUAD</Text>
             <Text style={styles.title}>Friends & Invites</Text>
           </View>
           <View style={styles.onlinePill}>
@@ -121,7 +136,7 @@ export default function FriendsScreen() {
                     active && { borderColor: g.color, backgroundColor: g.color + '20' },
                   ]}
                 >
-                  <Text style={styles.gameChipIcon}>{g.icon}</Text>
+                  {renderGameIcon(g.id, active ? g.color : COLORS.textSecondary)}
                   <Text
                     style={[
                       styles.gameChipText,
@@ -148,8 +163,9 @@ export default function FriendsScreen() {
               end={{ x: 1, y: 0 }}
               style={styles.hostRoomBtnInner}
             >
+              <Plus size={15} color="#03120E" />
               <Text style={styles.hostRoomBtnText}>
-                + CREATE {selectedInviteGame.toUpperCase()} ROOM CODE
+                CREATE {selectedInviteGame.toUpperCase()} ROOM CODE
               </Text>
             </LinearGradient>
           </Pressable>
@@ -157,7 +173,7 @@ export default function FriendsScreen() {
 
         {/* Add Friend Input */}
         <View style={styles.addCard}>
-          <Text style={styles.sectionLabel}>ADD FRIEND BY GAMERTAG</Text>
+          <Text style={styles.sectionLabel}>ADD FRIEND BY USERNAME</Text>
           <View style={styles.inputRow}>
             <TextInput
               value={newFriendName}
@@ -175,13 +191,14 @@ export default function FriendsScreen() {
                 pressed && { opacity: 0.85 },
               ]}
             >
+              <UserPlus size={15} color="#04120E" />
               <Text style={styles.addBtnText}>ADD</Text>
             </Pressable>
           </View>
         </View>
 
         {/* Friends List */}
-        <Text style={styles.listHeader}>YOUR SQUAD ({friends.length})</Text>
+        <Text style={styles.listHeader}>FRIENDS LIST ({friends.length})</Text>
         {friends.map((friend) => {
           const isOnline = friend.status === 'online';
           const isInGame = friend.status === 'in_game';
@@ -210,7 +227,7 @@ export default function FriendsScreen() {
                 <Text style={styles.friendName}>{friend.username}</Text>
                 <Text style={styles.friendMeta}>
                   {isOnline
-                    ? `Online • Fav: ${friend.favoriteGame.toUpperCase()} • ${friend.wins}W`
+                    ? `Online | Fav: ${friend.favoriteGame.toUpperCase()} | ${friend.wins}W`
                     : isInGame
                     ? `In Match (${friend.favoriteGame.toUpperCase()})`
                     : 'Offline'}
@@ -222,13 +239,14 @@ export default function FriendsScreen() {
                   onPress={() => handleInviteFriend(friend.username)}
                   style={styles.inviteBtn}
                 >
+                  <Share2 size={12} color={COLORS.indigoLight} />
                   <Text style={styles.inviteBtnText}>INVITE</Text>
                 </Pressable>
                 <Pressable
                   onPress={() => removeFriend(friend.id)}
                   style={styles.removeBtn}
                 >
-                  <Text style={styles.removeBtnText}>✕</Text>
+                  <X size={14} color={COLORS.textMuted} />
                 </Pressable>
               </View>
             </View>
@@ -323,15 +341,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 5,
+    gap: 6,
     paddingVertical: 9,
     borderRadius: 12,
     backgroundColor: COLORS.surfaceLight,
     borderWidth: 1.5,
     borderColor: COLORS.border,
-  },
-  gameChipIcon: {
-    fontSize: 14,
   },
   gameChipText: {
     color: COLORS.textSecondary,
@@ -343,6 +358,9 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   hostRoomBtnInner: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 6,
     paddingVertical: 13,
     alignItems: 'center',
     borderRadius: 12,
@@ -378,8 +396,10 @@ const styles = StyleSheet.create({
     borderColor: COLORS.border,
   },
   addBtn: {
+    flexDirection: 'row',
+    gap: 5,
     backgroundColor: COLORS.primary,
-    paddingHorizontal: 18,
+    paddingHorizontal: 16,
     justifyContent: 'center',
     alignItems: 'center',
     borderRadius: 12,
@@ -452,6 +472,9 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   inviteBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
     backgroundColor: 'rgba(99, 102, 241, 0.18)',
     borderWidth: 1,
     borderColor: COLORS.indigoLight,
@@ -472,10 +495,5 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.surfaceLight,
     justifyContent: 'center',
     alignItems: 'center',
-  },
-  removeBtnText: {
-    color: COLORS.textMuted,
-    fontSize: 12,
-    fontWeight: '800',
   },
 });

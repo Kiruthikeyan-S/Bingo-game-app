@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, Alert } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Shuffle, RotateCcw, Lock, Check, Clock, Bot } from 'lucide-react-native';
+import { Shuffle, RotateCcw, Lock, Check, Clock, Play } from 'lucide-react-native';
 import { GameHeader } from '../components/GameHeader';
 import { BingoBoard } from '../components/BingoBoard';
 import { GameButton } from '../components/GameButton';
@@ -31,6 +31,8 @@ export default function BoardSetupScreen() {
 
   const isBotMode = gameMode === 'bot';
   const opponent = Object.values(players).find((p) => p.id !== playerId);
+  const diffCapitalized =
+    botDifficulty.charAt(0).toUpperCase() + botDifficulty.slice(1);
 
   const handleCellPress = (number: number, index: number) => {
     if (isBoardConfirmed) return;
@@ -38,9 +40,8 @@ export default function BoardSetupScreen() {
     if (selectedCellIndex === null) {
       setSelectedCellIndex(index);
     } else if (selectedCellIndex === index) {
-      setSelectedCellIndex(null); // Deselect
+      setSelectedCellIndex(null);
     } else {
-      // Swap selected cells
       swapBoardCells(selectedCellIndex, index);
       setSelectedCellIndex(null);
     }
@@ -79,7 +80,7 @@ export default function BoardSetupScreen() {
     <SafeAreaView style={styles.safeArea}>
       <GameHeader
         title="Arrange Your Board"
-        subtitle="Numbers 1 to 25 • Tap two cells to swap"
+        subtitle="Numbers 1 to 25 - Tap two cells to swap"
         showBack={!isBoardConfirmed}
       />
 
@@ -89,7 +90,7 @@ export default function BoardSetupScreen() {
           <Text style={styles.bannerLabel}>OPPONENT:</Text>
           <Text style={styles.opponentName}>
             {isBotMode
-              ? `🤖 Bingo Bot (${botDifficulty.toUpperCase()})`
+              ? `Computer (${diffCapitalized})`
               : opponent?.username || 'Opponent'}
           </Text>
           <View
@@ -115,7 +116,7 @@ export default function BoardSetupScreen() {
         {/* Instructions */}
         <Text style={styles.tipText}>
           {isBoardConfirmed
-            ? '🔒 Board locked! Waiting for opponent to confirm readiness...'
+            ? 'Board locked. Waiting for opponent to confirm readiness...'
             : selectedCellIndex !== null
             ? `Select another cell to swap with [${myBoard[selectedCellIndex]}]`
             : 'Shuffle or tap any two cells to customize your grid.'}
@@ -152,17 +153,17 @@ export default function BoardSetupScreen() {
             </View>
 
             <GameButton
-              title={isBotMode ? 'Start Bot Battle' : 'Lock & Confirm Board'}
+              title={isBotMode ? 'Start Match' : 'Lock & Confirm Board'}
               onPress={handleConfirmBoard}
               loading={submitting}
-              icon={isBotMode ? <Bot size={18} color="#ffffff" /> : <Lock size={18} color="#ffffff" />}
+              icon={isBotMode ? <Play size={18} color="#ffffff" /> : <Lock size={18} color="#ffffff" />}
               style={styles.confirmBtn}
             />
           </View>
         ) : (
           <View style={styles.lockedNotice}>
             <Check size={28} color="#10b981" />
-            <Text style={styles.lockedTitle}>Your Board is Confirmed!</Text>
+            <Text style={styles.lockedTitle}>Your Board is Confirmed</Text>
             <Text style={styles.lockedSubtitle}>
               Match will launch automatically as soon as all players lock in.
             </Text>

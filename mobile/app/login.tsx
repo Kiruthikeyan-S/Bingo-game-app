@@ -12,7 +12,7 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Sparkles, UserCheck } from 'lucide-react-native';
+import { Shield, UserCheck } from 'lucide-react-native';
 import { GameButton } from '../components/GameButton';
 import { usePlayerStore, AVATAR_OPTIONS } from '../store/playerStore';
 
@@ -54,7 +54,7 @@ export default function LoginScreen() {
         <ScrollView contentContainerStyle={styles.content}>
           <View style={styles.header}>
             <View style={styles.iconCircle}>
-              <Sparkles size={28} color="#00e5ff" />
+              <Shield size={28} color="#00e5ff" />
             </View>
             <Text style={styles.title}>Player Profile</Text>
             <Text style={styles.subtitle}>Choose your avatar & battlefield name</Text>

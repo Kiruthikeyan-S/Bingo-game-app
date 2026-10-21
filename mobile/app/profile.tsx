@@ -17,7 +17,7 @@ import {
   LogOut,
   Edit2,
   Trophy,
-  Flame,
+  ShieldCheck,
 } from 'lucide-react-native';
 import { GameHeader } from '../components/GameHeader';
 import { GameButton } from '../components/GameButton';
@@ -68,7 +68,7 @@ export default function ProfileScreen() {
             <Text style={styles.statLabel}>RANK</Text>
           </View>
           <View style={styles.statBox}>
-            <Flame size={20} color="#00e5ff" />
+            <ShieldCheck size={20} color="#00e5ff" />
             <Text style={styles.statVal}>Active</Text>
             <Text style={styles.statLabel}>STATUS</Text>
           </View>

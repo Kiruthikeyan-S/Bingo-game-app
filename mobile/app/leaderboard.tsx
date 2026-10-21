@@ -51,7 +51,7 @@ export default function LeaderboardScreen() {
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <GameHeader title="Leaderboard" subtitle="Top Bingo Battle Champions" />
+      <GameHeader title="Leaderboard" subtitle="Top Game Hub Champions" />
 
       {loading ? (
         <View style={styles.centerContainer}>
@@ -94,7 +94,7 @@ export default function LeaderboardScreen() {
                     {entry.username} {isMe ? '(You)' : ''}
                   </Text>
                   <Text style={styles.statsSummary}>
-                    {entry.wins}W • {entry.losses}L • {entry.draws}D
+                    {entry.wins}W / {entry.losses}L / {entry.draws}D
                   </Text>
                 </View>
 

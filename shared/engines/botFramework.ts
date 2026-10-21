@@ -18,7 +18,7 @@ export interface ISmartBot<TState, TMove> {
 }
 
 /**
- * Reusable Smart Bot Base Class implementing the required bot lifecycle:
+ * Reusable Bot Base Class implementing the bot lifecycle:
  * - getLegalMoves()
  * - calculateMoveScore()
  * - selectBotMove()
@@ -55,7 +55,6 @@ export abstract class SmartBotBase<TState, TMove> implements ISmartBot<TState, T
       return legalMoves[0];
     }
 
-    // Easy mode: predominantly random legal selection
     if (activeDifficulty === 'easy') {
       const idx = Math.floor(Math.random() * legalMoves.length);
       return legalMoves[idx];
@@ -87,8 +86,8 @@ export abstract class SmartBotBase<TState, TMove> implements ISmartBot<TState, T
       isGameActive?: () => boolean;
     }
   ): Promise<TMove | null> {
-    const minDelay = options?.minDelayMs ?? 550;
-    const maxDelay = options?.maxDelayMs ?? 1200;
+    const minDelay = options?.minDelayMs ?? 120;
+    const maxDelay = options?.maxDelayMs ?? 220;
     const delay = Math.floor(minDelay + Math.random() * Math.max(0, maxDelay - minDelay));
 
     await new Promise((resolve) => setTimeout(resolve, delay));

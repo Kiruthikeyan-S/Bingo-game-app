@@ -198,7 +198,7 @@ export const useGameStore = create<GameStoreState>((set) => ({
         [botId]: {
           id: botId,
           socketId: 'bot',
-          username: `BingoBot (${difficultyLabel})`,
+          username: `Computer (${difficultyLabel})`,
           avatarUrl:
             'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=120',
           isReady: true,
@@ -211,7 +211,7 @@ export const useGameStore = create<GameStoreState>((set) => ({
       return {
         selectedGame: 'bingo',
         gameMode: 'bot',
-        roomCode: 'BOT-AI',
+        roomCode: 'SOLO',
         hostPlayerId: myPlayerId,
         players,
         playerOrder: [myPlayerId, botId],

@@ -15,12 +15,9 @@ import { LinearGradient } from 'expo-linear-gradient';
 import {
   Play,
   LogIn,
-  Trophy,
   Settings as SettingsIcon,
   X,
-  Flame,
-  Sparkles,
-  Bot,
+  Cpu,
   Globe,
   Users,
   Crown,
@@ -30,6 +27,7 @@ import {
   Moon,
   Coins,
   Swords,
+  Shield,
 } from 'lucide-react-native';
 import { usePlayerStore } from '../store/playerStore';
 import { useGameStore } from '../store/gameStore';
@@ -48,17 +46,18 @@ interface GameCardMeta {
   gradient: [string, string, string];
   accentColor: string;
   previewTokens: string[];
+  colorDots?: string[];
 }
 
 const GAME_CARDS: GameCardMeta[] = [
   {
     id: 'bingo',
     title: 'BINGO BATTLE',
-    subtitle: '5×5 Tactical Grid',
+    subtitle: '5x5 Tactical Grid',
     badge: 'CLASSIC & PVP',
-    playersTag: '1–4 Players',
+    playersTag: '1-4 Players',
     description:
-      'Arrange secret numbers 1–25, call numbers in real-time, and light up 5 B-I-N-G-O lines before your rival!',
+      'Arrange secret numbers 1 to 25, call numbers in real-time, and complete 5 B-I-N-G-O lines before your opponent.',
     gradient: ['#3b0764', '#311078', '#1e1b4b'],
     accentColor: '#00e5ff',
     previewTokens: ['B', 'I', 'N', 'G', 'O'],
@@ -66,26 +65,27 @@ const GAME_CARDS: GameCardMeta[] = [
   {
     id: 'chess',
     title: 'ROYAL CHESS',
-    subtitle: 'Grandmaster 8×8 Arena',
-    badge: 'STRATEGY AI',
-    playersTag: '1–2 Players',
+    subtitle: 'Grandmaster 8x8 Board',
+    badge: 'FIDE RULES',
+    playersTag: '1-2 Players',
     description:
-      'Full FIDE legal rules with castling, en passant, promotions, move history, and multi-depth AI or live 1v1!',
+      'Standard FIDE rules with castling, en passant, pawn promotion, move history, and solo practice or live 1v1 rooms.',
     gradient: ['#064e3b', '#065f46', '#0f172a'],
     accentColor: '#00ff87',
-    previewTokens: ['♔', '♕', '♖', '♗', '♘'],
+    previewTokens: ['K', 'Q', 'R', 'B', 'N'],
   },
   {
     id: 'ludo',
     title: 'CLASSIC LUDO',
-    subtitle: '4-Color Dice Warfare',
-    badge: '2–4 PLAYERS',
-    playersTag: '1–4 Players',
+    subtitle: '4-Color Dice Board',
+    badge: '2-4 PLAYERS',
+    playersTag: '1-4 Players',
     description:
-      'Roll a 6 to deploy tokens, chase & capture opponents, protect star squares, and race all 4 tokens home!',
+      'Roll a 6 to deploy tokens, capture opponent pieces, protect star safe squares, and race all 4 tokens home.',
     gradient: ['#7c2d12', '#9a3412', '#1e1b4b'],
     accentColor: '#ffd700',
-    previewTokens: ['🔴', '🟢', '🟡', '🔵', '🎲'],
+    previewTokens: ['R', 'G', 'Y', 'B'],
+    colorDots: ['#ef4444', '#10b981', '#f59e0b', '#3b82f6'],
   },
 ];
 
@@ -119,7 +119,7 @@ export default function HomeScreen() {
     hydrateFromStorage();
     Animated.timing(fadeAnim, {
       toValue: 1,
-      duration: 450,
+      duration: 380,
       useNativeDriver: true,
     }).start();
   }, []);
@@ -166,6 +166,12 @@ export default function HomeScreen() {
   const activeGameMeta =
     GAME_CARDS.find((g) => g.id === selectedGame) || GAME_CARDS[0];
 
+  const renderGameIcon = (id: GameType, color: string) => {
+    if (id === 'bingo') return <Grid size={13} color={color} />;
+    if (id === 'chess') return <Crown size={13} color={color} />;
+    return <Dices size={13} color={color} />;
+  };
+
   return (
     <SafeAreaView style={[styles.safeArea, isLight && styles.safeAreaLight]}>
       <ScrollView
@@ -182,13 +188,13 @@ export default function HomeScreen() {
             <View style={styles.avatarRing}>
               <Image source={{ uri: avatarUrl }} style={styles.profileAvatar} />
               <View style={styles.levelPill}>
-                <Text style={styles.levelPillText}>HUB</Text>
+                <Text style={styles.levelPillText}>PRO</Text>
               </View>
             </View>
             <View style={styles.profileTextCol}>
               <View style={styles.greetingRow}>
-                <Flame size={11} color="#00e5ff" />
-                <Text style={styles.greeting}>GAME HUB ARENA</Text>
+                <Shield size={11} color="#00e5ff" />
+                <Text style={styles.greeting}>GAME HUB</Text>
               </View>
               <Text
                 style={[styles.playerName, isLight && styles.textDark]}
@@ -200,13 +206,11 @@ export default function HomeScreen() {
           </TouchableOpacity>
 
           <View style={styles.topRightActions}>
-            {/* Non-monetary Coins Pill */}
             <View style={styles.coinsPill}>
               <Coins size={15} color="#ffd700" />
               <Text style={styles.coinsText}>{coins}</Text>
             </View>
 
-            {/* Theme Toggle */}
             <TouchableOpacity
               activeOpacity={0.8}
               style={[styles.iconCircle, isLight && styles.cardLight]}
@@ -219,7 +223,6 @@ export default function HomeScreen() {
               )}
             </TouchableOpacity>
 
-            {/* Settings */}
             <TouchableOpacity
               activeOpacity={0.8}
               style={[styles.iconCircle, isLight && styles.cardLight]}
@@ -283,7 +286,7 @@ export default function HomeScreen() {
           <View style={styles.sectionTitleLeft}>
             <Swords size={16} color="#00e5ff" />
             <Text style={[styles.sectionTitle, isLight && styles.textDark]}>
-              CHOOSE YOUR GAME
+              SELECT A GAME
             </Text>
           </View>
           <TouchableOpacity
@@ -291,11 +294,11 @@ export default function HomeScreen() {
             onPress={() => router.push('/join-room')}
           >
             <LogIn size={13} color="#00e5ff" />
-            <Text style={styles.quickJoinText}>Enter Room Code</Text>
+            <Text style={styles.quickJoinText}>Join with Code</Text>
           </TouchableOpacity>
         </View>
 
-        {/* Three Animated Game Cards: 1. Bingo, 2. Chess, 3. Ludo */}
+        {/* Three Game Cards: 1. Bingo, 2. Chess, 3. Ludo */}
         <Animated.View style={{ opacity: fadeAnim, gap: 14 }}>
           {GAME_CARDS.map((game) => (
             <TouchableOpacity
@@ -323,7 +326,7 @@ export default function HomeScreen() {
                       },
                     ]}
                   >
-                    <Sparkles size={11} color={game.accentColor} />
+                    {renderGameIcon(game.id, game.accentColor)}
                     <Text
                       style={[styles.cardBadgeText, { color: game.accentColor }]}
                     >
@@ -360,10 +363,25 @@ export default function HomeScreen() {
                         key={i}
                         style={[
                           styles.previewOrb,
-                          { borderColor: `${game.accentColor}55` },
+                          {
+                            borderColor: game.colorDots
+                              ? game.colorDots[i]
+                              : `${game.accentColor}55`,
+                          },
                         ]}
                       >
-                        <Text style={styles.previewOrbText}>{tok}</Text>
+                        {game.colorDots ? (
+                          <View
+                            style={{
+                              width: 14,
+                              height: 14,
+                              borderRadius: 7,
+                              backgroundColor: game.colorDots[i],
+                            }}
+                          />
+                        ) : (
+                          <Text style={styles.previewOrbText}>{tok}</Text>
+                        )}
                       </View>
                     ))}
                   </View>
@@ -387,7 +405,7 @@ export default function HomeScreen() {
       {/* Bottom Navigation Bar */}
       <BottomNavBar />
 
-      {/* Game Selection Modal (Play vs Bot / Play Online / Difficulty) */}
+      {/* Game Selection Modal (Single Player / Play Online / Difficulty) */}
       <Modal
         visible={modeModalVisible}
         animationType="slide"
@@ -419,22 +437,21 @@ export default function HomeScreen() {
             </View>
 
             <ScrollView showsVerticalScrollIndicator={false}>
-              {/* 1. PLAY VS BOT SECTION */}
+              {/* 1. SINGLE PLAYER SECTION */}
               <View style={styles.modeSectionCard}>
                 <View style={styles.modeHeaderRow}>
                   <View style={styles.modeIconBadge}>
-                    <Bot size={20} color="#00ff87" />
+                    <Cpu size={20} color="#00ff87" />
                   </View>
                   <View style={{ flex: 1 }}>
-                    <Text style={styles.modeTitle}>Play vs Smart Bot</Text>
+                    <Text style={styles.modeTitle}>Single Player</Text>
                     <Text style={styles.modeSubtitle}>
-                      Instant offline match • No internet required
+                      Instant offline match, no internet required
                     </Text>
                   </View>
                 </View>
 
-                {/* Bot Difficulty Selector: Easy / Medium / Hard */}
-                <Text style={styles.selectorLabel}>SELECT BOT DIFFICULTY</Text>
+                <Text style={styles.selectorLabel}>DIFFICULTY LEVEL</Text>
                 <View style={styles.difficultyRow}>
                   {(['easy', 'medium', 'hard'] as BotDifficulty[]).map((diff) => {
                     const active = botDifficulty === diff;
@@ -461,11 +478,10 @@ export default function HomeScreen() {
                   })}
                 </View>
 
-                {/* Ludo Bot Count Selector (1, 2, or 3 Bots) */}
                 {selectedGame === 'ludo' && (
                   <>
                     <Text style={[styles.selectorLabel, { marginTop: 10 }]}>
-                      NUMBER OF AI OPPONENTS
+                      OPPONENT COUNT
                     </Text>
                     <View style={styles.difficultyRow}>
                       {([1, 2, 3] as Array<1 | 2 | 3>).map((cnt) => {
@@ -486,7 +502,7 @@ export default function HomeScreen() {
                                 active && styles.diffPillTextActive,
                               ]}
                             >
-                              1 VS {cnt} {cnt === 1 ? 'BOT' : 'BOTS'}
+                              1 VS {cnt}
                             </Text>
                           </TouchableOpacity>
                         );
@@ -496,9 +512,9 @@ export default function HomeScreen() {
                 )}
 
                 <GameButton
-                  title={`Start vs ${
+                  title={`Play Single Player (${
                     botDifficulty.charAt(0).toUpperCase() + botDifficulty.slice(1)
-                  } Bot`}
+                  })`}
                   variant="success"
                   onPress={handleStartBotGame}
                   icon={<Play size={18} color="#ffffff" />}
@@ -518,9 +534,9 @@ export default function HomeScreen() {
                     <Globe size={20} color="#00e5ff" />
                   </View>
                   <View style={{ flex: 1 }}>
-                    <Text style={styles.modeTitle}>Play Online with Friends</Text>
+                    <Text style={styles.modeTitle}>Online Multiplayer</Text>
                     <Text style={styles.modeSubtitle}>
-                      Real-time synchronized rooms • Private 6-digit codes
+                      Real-time rooms with private 6-character codes
                     </Text>
                   </View>
                 </View>
@@ -650,12 +666,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 5,
-    backgroundColor: 'rgba(255, 215, 0, 0.14)',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 215, 0, 0.4)',
+    backgroundColor: '#0f1636',
     paddingHorizontal: 10,
-    paddingVertical: 7,
-    borderRadius: 18,
+    paddingVertical: 8,
+    borderRadius: 16,
+    borderWidth: 1.5,
+    borderColor: 'rgba(255, 215, 0, 0.35)',
   },
   coinsText: {
     fontSize: 13,
@@ -665,7 +681,7 @@ const styles = StyleSheet.create({
   iconCircle: {
     width: 38,
     height: 38,
-    borderRadius: 19,
+    borderRadius: 14,
     backgroundColor: '#0f1636',
     borderWidth: 1.5,
     borderColor: '#1e2b5e',
@@ -676,11 +692,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: '#0c122e',
+    backgroundColor: '#0f1636',
     borderRadius: 18,
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    borderWidth: 1,
+    paddingVertical: 12,
+    paddingHorizontal: 10,
+    borderWidth: 1.5,
     borderColor: '#1e2b5e',
     marginBottom: 14,
   },
@@ -696,14 +712,14 @@ const styles = StyleSheet.create({
   statLabel: {
     fontSize: 9,
     fontWeight: '800',
-    color: '#64748b',
+    color: '#94a3b8',
     letterSpacing: 0.8,
     marginTop: 2,
   },
   statDivider: {
     width: 1,
     height: 24,
-    backgroundColor: '#1e293b',
+    backgroundColor: '#1e2b5e',
   },
   onlineRow: {
     flexDirection: 'row',
@@ -717,8 +733,8 @@ const styles = StyleSheet.create({
   },
   sectionHeaderRow: {
     flexDirection: 'row',
-    alignItems: 'center',
     justifyContent: 'space-between',
+    alignItems: 'center',
     marginBottom: 10,
   },
   sectionTitleLeft: {
@@ -729,19 +745,19 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 13,
     fontWeight: '900',
-    color: '#f8fafc',
-    letterSpacing: 1.2,
+    color: '#e2e8f0',
+    letterSpacing: 1.4,
   },
   quickJoinPill: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 5,
     backgroundColor: 'rgba(0, 229, 255, 0.12)',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 12,
     borderWidth: 1,
     borderColor: 'rgba(0, 229, 255, 0.35)',
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 12,
   },
   quickJoinText: {
     fontSize: 11,
@@ -749,30 +765,30 @@ const styles = StyleSheet.create({
     color: '#00e5ff',
   },
   gameCardTouchable: {
-    borderRadius: 22,
+    borderRadius: 24,
+  },
+  gameCard: {
+    borderRadius: 24,
+    padding: 18,
+    borderWidth: 1.5,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.35,
-    shadowRadius: 10,
+    shadowRadius: 12,
     elevation: 6,
-  },
-  gameCard: {
-    borderRadius: 22,
-    padding: 16,
-    borderWidth: 1.5,
   },
   cardTopRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 8,
+    marginBottom: 10,
   },
   cardBadge: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 5,
-    paddingHorizontal: 9,
-    paddingVertical: 3,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
     borderRadius: 10,
     borderWidth: 1,
   },
@@ -785,9 +801,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    backgroundColor: 'rgba(0, 0, 0, 0.35)',
+    backgroundColor: 'rgba(15, 23, 42, 0.55)',
     paddingHorizontal: 8,
-    paddingVertical: 3,
+    paddingVertical: 4,
     borderRadius: 10,
   },
   playersPillText: {
@@ -798,6 +814,7 @@ const styles = StyleSheet.create({
   cardMainRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    marginBottom: 14,
   },
   cardInfoCol: {
     flex: 1,
@@ -806,27 +823,26 @@ const styles = StyleSheet.create({
     fontSize: 22,
     fontWeight: '900',
     color: '#ffffff',
-    letterSpacing: 0.8,
+    letterSpacing: 1,
   },
   gameCardSubtitle: {
     fontSize: 12,
     fontWeight: '800',
-    marginTop: 1,
+    marginTop: 2,
+    marginBottom: 6,
   },
   gameCardDesc: {
     fontSize: 12,
     color: '#cbd5e1',
     lineHeight: 17,
-    marginTop: 5,
   },
   cardFooterRow: {
     flexDirection: 'row',
-    alignItems: 'center',
     justifyContent: 'space-between',
-    marginTop: 12,
-    paddingTop: 10,
+    alignItems: 'center',
     borderTopWidth: 1,
     borderTopColor: 'rgba(255, 255, 255, 0.1)',
+    paddingTop: 12,
   },
   previewTokensRow: {
     flexDirection: 'row',
@@ -836,13 +852,13 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 10,
-    backgroundColor: 'rgba(5, 8, 22, 0.5)',
-    borderWidth: 1,
+    backgroundColor: 'rgba(5, 8, 22, 0.65)',
+    borderWidth: 1.2,
     alignItems: 'center',
     justifyContent: 'center',
   },
   previewOrbText: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '900',
     color: '#ffffff',
   },
@@ -850,35 +866,35 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
+    paddingHorizontal: 18,
+    paddingVertical: 10,
     borderRadius: 14,
   },
   playBtnPillText: {
     fontSize: 13,
     fontWeight: '900',
     color: '#050816',
-    letterSpacing: 0.8,
+    letterSpacing: 1,
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(5, 8, 22, 0.82)',
+    backgroundColor: 'rgba(3, 6, 18, 0.85)',
     justifyContent: 'flex-end',
   },
   modalContent: {
-    backgroundColor: '#0c122e',
+    backgroundColor: '#0b102b',
     borderTopLeftRadius: 28,
     borderTopRightRadius: 28,
     padding: 20,
     maxHeight: '88%',
-    borderTopWidth: 2,
-    borderColor: '#312e81',
+    borderTopWidth: 1.5,
+    borderColor: '#253470',
   },
   modalHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 14,
+    marginBottom: 16,
   },
   modalGameTag: {
     fontSize: 10,
@@ -886,20 +902,20 @@ const styles = StyleSheet.create({
     letterSpacing: 1.4,
   },
   modalTitle: {
-    fontSize: 24,
+    fontSize: 22,
     fontWeight: '900',
-    color: '#ffffff',
+    color: '#f8fafc',
   },
   modalCloseBtn: {
     width: 36,
     height: 36,
-    borderRadius: 18,
-    backgroundColor: '#1e293b',
+    borderRadius: 12,
+    backgroundColor: '#151e46',
     alignItems: 'center',
     justifyContent: 'center',
   },
   modeSectionCard: {
-    backgroundColor: '#131c47',
+    backgroundColor: '#111942',
     borderRadius: 20,
     padding: 16,
     borderWidth: 1.5,
@@ -907,31 +923,31 @@ const styles = StyleSheet.create({
     marginBottom: 14,
   },
   onlineSectionCard: {
-    borderColor: 'rgba(0, 229, 255, 0.3)',
+    borderColor: 'rgba(0, 229, 255, 0.35)',
   },
   modeHeaderRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    marginBottom: 12,
+    marginBottom: 14,
   },
   modeIconBadge: {
-    width: 42,
-    height: 42,
-    borderRadius: 13,
+    width: 44,
+    height: 44,
+    borderRadius: 14,
     backgroundColor: 'rgba(0, 255, 135, 0.14)',
     alignItems: 'center',
     justifyContent: 'center',
   },
   modeTitle: {
-    fontSize: 17,
+    fontSize: 16,
     fontWeight: '900',
     color: '#f8fafc',
   },
   modeSubtitle: {
     fontSize: 11,
     color: '#94a3b8',
-    marginTop: 1,
+    marginTop: 2,
   },
   selectorLabel: {
     fontSize: 10,
@@ -948,14 +964,14 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingVertical: 10,
     borderRadius: 12,
-    backgroundColor: '#090e26',
+    backgroundColor: '#0b102b',
     borderWidth: 1.5,
-    borderColor: '#24326f',
+    borderColor: '#253470',
     alignItems: 'center',
   },
   diffPillActive: {
+    backgroundColor: 'rgba(0, 255, 135, 0.18)',
     borderColor: '#00ff87',
-    backgroundColor: 'rgba(0, 255, 135, 0.16)',
   },
   diffPillText: {
     fontSize: 12,
@@ -969,6 +985,6 @@ const styles = StyleSheet.create({
   onlineSubRow: {
     flexDirection: 'row',
     gap: 10,
-    marginTop: 4,
+    marginTop: 6,
   },
 });

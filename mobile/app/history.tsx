@@ -7,6 +7,15 @@ import {
   Pressable,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import {
+  Layers,
+  Grid,
+  Crown,
+  Dices,
+  History as HistoryIcon,
+  Cpu,
+  Globe,
+} from 'lucide-react-native';
 import { usePlayerStore } from '../store/playerStore';
 import { GameType } from '../../shared/types';
 import { BottomNavBar } from '../components/BottomNavBar';
@@ -28,11 +37,11 @@ const COLORS = {
 
 type FilterTab = 'all' | GameType;
 
-const FILTERS: { id: FilterTab; label: string; icon: string }[] = [
-  { id: 'all', label: 'All Games', icon: '⚡' },
-  { id: 'bingo', label: 'Bingo', icon: '🎯' },
-  { id: 'chess', label: 'Chess', icon: '♟️' },
-  { id: 'ludo', label: 'Ludo', icon: '🎲' },
+const FILTERS: { id: FilterTab; label: string }[] = [
+  { id: 'all', label: 'All Games' },
+  { id: 'bingo', label: 'Bingo' },
+  { id: 'chess', label: 'Chess' },
+  { id: 'ludo', label: 'Ludo' },
 ];
 
 export default function HistoryScreen() {
@@ -53,6 +62,20 @@ export default function HistoryScreen() {
           played: stats.played,
         }
       : stats.byGame[filter];
+
+  const renderTabIcon = (id: FilterTab, active: boolean) => {
+    const color = active ? COLORS.primary : COLORS.textSecondary;
+    if (id === 'all') return <Layers size={13} color={color} />;
+    if (id === 'bingo') return <Grid size={13} color={color} />;
+    if (id === 'chess') return <Crown size={13} color={color} />;
+    return <Dices size={13} color={color} />;
+  };
+
+  const renderGameBadgeIcon = (gType: GameType) => {
+    if (gType === 'bingo') return <Grid size={20} color={COLORS.primary} />;
+    if (gType === 'chess') return <Crown size={20} color="#00FF87" />;
+    return <Dices size={20} color={COLORS.gold} />;
+  };
 
   return (
     <View style={styles.root}>
@@ -80,7 +103,7 @@ export default function HistoryScreen() {
                 onPress={() => setFilter(f.id)}
                 style={[styles.filterChip, active && styles.filterChipActive]}
               >
-                <Text style={styles.filterIcon}>{f.icon}</Text>
+                {renderTabIcon(f.id, active)}
                 <Text
                   style={[styles.filterText, active && styles.filterTextActive]}
                 >
@@ -130,11 +153,13 @@ export default function HistoryScreen() {
 
         {filtered.length === 0 ? (
           <View style={styles.emptyBox}>
-            <Text style={styles.emptyEmoji}>📜</Text>
+            <View style={styles.emptyIconCircle}>
+              <HistoryIcon size={28} color={COLORS.primary} />
+            </View>
             <Text style={styles.emptyTitle}>No matches recorded yet</Text>
             <Text style={styles.emptySub}>
-              Play Bingo, Chess, or Ludo against Smart Bots or Online Friends to
-              build your battle log!
+              Play Bingo, Chess, or Ludo in Single Player or Online Rooms to
+              track your match statistics here.
             </Text>
           </View>
         ) : (
@@ -146,17 +171,11 @@ export default function HistoryScreen() {
               : isDraw
               ? COLORS.gold
               : COLORS.danger;
-            const gameIcon =
-              item.gameType === 'bingo'
-                ? '🎯'
-                : item.gameType === 'chess'
-                ? '♟️'
-                : '🎲';
 
             return (
               <View key={item.id} style={styles.historyCard}>
                 <View style={styles.gameIconBadge}>
-                  <Text style={styles.gameIconText}>{gameIcon}</Text>
+                  {renderGameBadgeIcon(item.gameType)}
                 </View>
 
                 <View style={styles.historyBody}>
@@ -184,13 +203,20 @@ export default function HistoryScreen() {
                   </Text>
 
                   <View style={styles.historyMetaRow}>
-                    <Text style={styles.historyMetaTag}>
-                      {item.mode === 'bot'
-                        ? `🤖 Bot (${item.difficulty || 'medium'})`
-                        : '🌐 Online Room'}
-                    </Text>
+                    <View style={styles.modeTagRow}>
+                      {item.mode === 'bot' ? (
+                        <Cpu size={11} color={COLORS.indigoLight} />
+                      ) : (
+                        <Globe size={11} color={COLORS.indigoLight} />
+                      )}
+                      <Text style={styles.historyMetaTag}>
+                        {item.mode === 'bot'
+                          ? `Single Player (${item.difficulty || 'medium'})`
+                          : 'Online Room'}
+                      </Text>
+                    </View>
                     <Text style={styles.historyDate}>
-                      {new Date(item.timestamp).toLocaleDateString()} •{' '}
+                      {new Date(item.timestamp).toLocaleDateString()} |{' '}
                       {item.movesCount} moves
                     </Text>
                   </View>
@@ -248,7 +274,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 4,
+    gap: 5,
     paddingVertical: 9,
     borderRadius: 12,
     backgroundColor: COLORS.surface,
@@ -257,10 +283,7 @@ const styles = StyleSheet.create({
   },
   filterChipActive: {
     borderColor: COLORS.primary,
-    backgroundColor: 'rgba(16, 185, 129, 0.14)',
-  },
-  filterIcon: {
-    fontSize: 13,
+    backgroundColor: 'rgba(0, 229, 255, 0.14)',
   },
   filterText: {
     color: COLORS.textSecondary,
@@ -311,9 +334,14 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: COLORS.border,
   },
-  emptyEmoji: {
-    fontSize: 38,
-    marginBottom: 8,
+  emptyIconCircle: {
+    width: 56,
+    height: 56,
+    borderRadius: 18,
+    backgroundColor: COLORS.surfaceElevated,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 12,
   },
   emptyTitle: {
     color: COLORS.text,
@@ -345,9 +373,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 12,
-  },
-  gameIconText: {
-    fontSize: 22,
   },
   historyBody: {
     flex: 1,
@@ -381,7 +406,13 @@ const styles = StyleSheet.create({
   historyMetaRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
+    alignItems: 'center',
     marginTop: 5,
+  },
+  modeTagRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
   },
   historyMetaTag: {
     color: COLORS.indigoLight,

@@ -9,7 +9,7 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { LogOut, Volume2, VolumeX, Sparkles, AlertTriangle } from 'lucide-react-native';
+import { LogOut, Volume2, VolumeX, Shield } from 'lucide-react-native';
 import { GameHeader } from '../components/GameHeader';
 import { PlayerCard } from '../components/PlayerCard';
 import { BingoProgress } from '../components/BingoProgress';
@@ -43,7 +43,7 @@ export default function GameScreen() {
 
   const handleCellPress = async (number: number) => {
     if (!isMyTurn) {
-      Alert.alert('Not Your Turn', 'Wait for your opponent to select a number!');
+      Alert.alert('Not Your Turn', 'Wait for your opponent to select a number.');
       return;
     }
     if (calledNumbers.includes(number)) {
@@ -94,7 +94,7 @@ export default function GameScreen() {
     <SafeAreaView style={styles.safeArea}>
       <GameHeader
         title="Bingo Battle"
-        subtitle={`Room ${roomCode}`}
+        subtitle={roomCode === 'SOLO' ? 'Single Player Mode' : `Room ${roomCode}`}
         onBackPress={handleLeave}
       />
 
@@ -120,9 +120,11 @@ export default function GameScreen() {
 
         {/* Turn Banner */}
         <View style={[styles.turnBanner, isMyTurn ? styles.myTurnBanner : styles.oppTurnBanner]}>
-          <Sparkles size={16} color={isMyTurn ? '#00e5ff' : '#f59e0b'} />
+          <Shield size={16} color={isMyTurn ? '#00e5ff' : '#f59e0b'} />
           <Text style={[styles.turnBannerText, isMyTurn ? styles.myTurnText : styles.oppTurnText]}>
-            {isMyTurn ? 'YOUR TURN — Tap an uncrossed number!' : `Waiting for ${opponent?.username || 'Opponent'}...`}
+            {isMyTurn
+              ? 'YOUR TURN — Tap an uncrossed number'
+              : `${opponent?.username || 'Opponent'}'s Turn`}
           </Text>
         </View>
 

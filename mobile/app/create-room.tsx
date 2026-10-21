@@ -80,7 +80,7 @@ export default function CreateRoomScreen() {
 
   const gameLabel =
     activeGameType === 'bingo'
-      ? 'Bingo 5×5'
+      ? 'Bingo 5x5'
       : activeGameType === 'chess'
       ? 'Royal Chess'
       : 'Ludo Royale';

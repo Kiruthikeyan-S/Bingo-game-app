@@ -429,26 +429,16 @@ export class ChessBot extends SmartBotBase<ChessState, ChessMoveInput> {
     }
 
     if (difficulty === 'medium') {
-      // Medium: 2-ply Minimax with Material & Positional PST evaluation
-      const opponentResponses = chess.moves({ verbose: true }) as Move[];
-      if (opponentResponses.length === 0) {
-        return ChessEngine.evaluatePosition(chess, botColor);
-      }
-
-      let worstReplyScore = Infinity;
-      for (const reply of opponentResponses) {
-        chess.move(reply);
-        const evalScore = ChessEngine.evaluatePosition(chess, botColor);
-        if (evalScore < worstReplyScore) {
-          worstReplyScore = evalScore;
-        }
-        chess.undo();
-      }
-      return worstReplyScore + (Math.random() * 6 - 3);
+      // Fast 1-ply + tactical response check
+      const baseEval = ChessEngine.evaluatePosition(chess, botColor);
+      const captureBonus = applied.captured
+        ? (PIECE_VALUES[applied.captured as ChessPieceSymbol] || 100) * 0.25
+        : 0;
+      return baseEval + captureBonus + (Math.random() * 6 - 3);
     }
 
-    // Hard: Depth-3 Alpha-Beta Search with Move Ordering (MVV-LVA) + Time Bound
-    return this.alphaBeta(chess, 2, -Infinity, Infinity, false, botColor);
+    // Hard: Fast Alpha-Beta Search with Move Ordering (MVV-LVA)
+    return this.alphaBeta(chess, 1, -Infinity, Infinity, false, botColor);
   }
 
   public override selectBotMove(state: ChessState, difficulty?: BotDifficulty): ChessMoveInput | null {
@@ -469,7 +459,78 @@ export class ChessBot extends SmartBotBase<ChessState, ChessMoveInput> {
       }
     }
 
-    return super.selectBotMove(state, activeDifficulty);
+    try {
+      const chess = new Chess(state.fen);
+      const botColor = chess.turn() as ChessColor;
+      const verboseMoves = chess.moves({ verbose: true }) as Move[];
+      if (verboseMoves.length === 0) return null;
+      if (verboseMoves.length === 1) {
+        const single = verboseMoves[0];
+        return {
+          from: single.from,
+          to: single.to,
+          promotion: (single.promotion as 'q' | 'r' | 'b' | 'n' | undefined) || undefined,
+        };
+      }
+
+      if (activeDifficulty === 'easy') {
+        const captures = verboseMoves.filter((m) => Boolean(m.captured));
+        const pool = captures.length > 0 && Math.random() < 0.35 ? captures : verboseMoves;
+        const pick = pool[Math.floor(Math.random() * pool.length)];
+        return {
+          from: pick.from,
+          to: pick.to,
+          promotion: (pick.promotion as 'q' | 'r' | 'b' | 'n' | undefined) || undefined,
+        };
+      }
+
+      // Sort moves by tactical priority so alpha-beta prunes immediately
+      const ordered = [...verboseMoves].sort((a, b) => {
+        const scoreA =
+          (a.captured ? PIECE_VALUES[a.captured as ChessPieceSymbol] : 0) +
+          (a.promotion ? 800 : 0);
+        const scoreB =
+          (b.captured ? PIECE_VALUES[b.captured as ChessPieceSymbol] : 0) +
+          (b.promotion ? 800 : 0);
+        return scoreB - scoreA;
+      });
+
+      const depth = activeDifficulty === 'hard' ? 1 : 0;
+      let bestMove = ordered[0];
+      let bestScore = -Infinity;
+
+      for (const m of ordered) {
+        chess.move(m);
+        if (chess.isCheckmate()) {
+          chess.undo();
+          return {
+            from: m.from,
+            to: m.to,
+            promotion: (m.promotion as 'q' | 'r' | 'b' | 'n' | undefined) || undefined,
+          };
+        }
+        const score =
+          depth > 0
+            ? this.alphaBeta(chess, depth, -Infinity, Infinity, false, botColor)
+            : ChessEngine.evaluatePosition(chess, botColor) +
+              (m.captured ? (PIECE_VALUES[m.captured as ChessPieceSymbol] || 100) * 0.2 : 0) +
+              (Math.random() * 8 - 4);
+        chess.undo();
+
+        if (score > bestScore) {
+          bestScore = score;
+          bestMove = m;
+        }
+      }
+
+      return {
+        from: bestMove.from,
+        to: bestMove.to,
+        promotion: (bestMove.promotion as 'q' | 'r' | 'b' | 'n' | undefined) || undefined,
+      };
+    } catch {
+      return super.selectBotMove(state, activeDifficulty);
+    }
   }
 
   private alphaBeta(
@@ -484,11 +545,17 @@ export class ChessBot extends SmartBotBase<ChessState, ChessMoveInput> {
       return ChessEngine.evaluatePosition(chess, botColor);
     }
 
-    const moves = (chess.moves({ verbose: true }) as Move[]).sort((a, b) => {
-      const scoreA = (a.captured ? PIECE_VALUES[a.captured as ChessPieceSymbol] : 0) + (a.promotion ? 800 : 0);
-      const scoreB = (b.captured ? PIECE_VALUES[b.captured as ChessPieceSymbol] : 0) + (b.promotion ? 800 : 0);
-      return scoreB - scoreA;
-    });
+    const moves = (chess.moves({ verbose: true }) as Move[])
+      .sort((a, b) => {
+        const scoreA =
+          (a.captured ? PIECE_VALUES[a.captured as ChessPieceSymbol] : 0) +
+          (a.promotion ? 800 : 0);
+        const scoreB =
+          (b.captured ? PIECE_VALUES[b.captured as ChessPieceSymbol] : 0) +
+          (b.promotion ? 800 : 0);
+        return scoreB - scoreA;
+      })
+      .slice(0, 14);
 
     if (maximizingPlayer) {
       let maxEval = -Infinity;

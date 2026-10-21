@@ -13,7 +13,7 @@ import {
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
-import { Dices, Sparkles, Shield, Trophy, Bot } from 'lucide-react-native';
+import { Dices, Shield, Trophy, Star } from 'lucide-react-native';
 import { GameHeader } from '../../components/GameHeader';
 import { useGameStore } from '../../store/gameStore';
 import { usePlayerStore } from '../../store/playerStore';
@@ -51,35 +51,21 @@ const COLOR_LIGHT_BG: Record<LudoColor, string> = {
   blue: 'rgba(59, 130, 246, 0.25)',
 };
 
-// Exact 52-square perimeter track coordinates [row, col] on a 15x15 Ludo board
 const GLOBAL_TRACK_COORDS: Array<[number, number]> = [
-  // 0..4 (Red start arm going right)
   [6, 1], [6, 2], [6, 3], [6, 4], [6, 5],
-  // 5..10 (Up along left side of top arm)
   [5, 6], [4, 6], [3, 6], [2, 6], [1, 6], [0, 6],
-  // 11..12 (Top turn)
   [0, 7], [0, 8],
-  // 13..17 (Green start arm going down)
   [1, 8], [2, 8], [3, 8], [4, 8], [5, 8],
-  // 18..23 (Right along top side of right arm)
   [6, 9], [6, 10], [6, 11], [6, 12], [6, 13], [6, 14],
-  // 24..25 (Right turn)
   [7, 14], [8, 14],
-  // 26..30 (Yellow start arm going left)
   [8, 13], [8, 12], [8, 11], [8, 10], [8, 9],
-  // 31..36 (Down along right side of bottom arm)
   [9, 8], [10, 8], [11, 8], [12, 8], [13, 8], [14, 8],
-  // 37..38 (Bottom turn)
   [14, 7], [14, 6],
-  // 39..43 (Blue start arm going up)
   [13, 6], [12, 6], [11, 6], [10, 6], [9, 6],
-  // 44..49 (Left along bottom side of left arm)
   [8, 5], [8, 4], [8, 3], [8, 2], [8, 1], [8, 0],
-  // 50..51 (Left turn)
   [7, 0], [6, 0],
 ];
 
-// Home stretch coordinates for steps 51..55
 const HOME_STRETCH_COORDS: Record<LudoColor, Array<[number, number]>> = {
   red: [[7, 1], [7, 2], [7, 3], [7, 4], [7, 5]],
   green: [[1, 7], [2, 7], [3, 7], [4, 7], [5, 7]],
@@ -87,7 +73,6 @@ const HOME_STRETCH_COORDS: Record<LudoColor, Array<[number, number]>> = {
   blue: [[13, 7], [12, 7], [11, 7], [10, 7], [9, 7]],
 };
 
-// Finished Home positions (step === 56)
 const HOME_FINISH_COORD: Record<LudoColor, [number, number]> = {
   red: [7, 6],
   green: [6, 7],
@@ -95,7 +80,6 @@ const HOME_FINISH_COORD: Record<LudoColor, [number, number]> = {
   blue: [8, 7],
 };
 
-// Base Yard token slot coordinates (step === -1)
 const YARD_SLOT_COORDS: Record<LudoColor, Array<[number, number]>> = {
   red: [[1, 1], [1, 4], [4, 1], [4, 4]],
   green: [[1, 10], [1, 13], [4, 10], [4, 13]],
@@ -135,9 +119,8 @@ export default function LudoScreen() {
 
   const isBotMode = gameMode === 'bot';
 
-  // Initialize Offline Bot Ludo State (1 Human + 1..3 Bots)
   const [localLudoState, setLocalLudoState] = useState<LudoState>(() => {
-    const botIds = Array.from({ length: ludoBotCount }, (_, i) => `bot_ludo_${i + 1}`);
+    const botIds = Array.from({ length: ludoBotCount }, (_, i) => `cpu_ludo_${i + 1}`);
     return LudoEngine.createInitialState([playerId, ...botIds]);
   });
 
@@ -194,7 +177,7 @@ export default function LudoScreen() {
       const isMe = pId === playerId;
       return {
         playerId: pId,
-        username: isMe ? username : `${col.toUpperCase()} Bot`,
+        username: isMe ? username : `${col.toUpperCase()} CPU`,
         linesCompleted: homeCount,
         isWinner: col === winnerColor,
         isDraw: false,
@@ -208,7 +191,7 @@ export default function LudoScreen() {
       gameType: 'ludo',
       mode: 'bot',
       difficulty: botDifficulty,
-      opponentName: `${ludoBotCount} Ludo ${ludoBotCount === 1 ? 'Bot' : 'Bots'}`,
+      opponentName: `${ludoBotCount} Ludo ${ludoBotCount === 1 ? 'Opponent' : 'Opponents'}`,
       result: winnerColor === myColor ? 'win' : 'loss',
       resultReason: `${winnerColor.toUpperCase()} completed all 4 tokens`,
       movesCount: 30,
@@ -216,7 +199,7 @@ export default function LudoScreen() {
     router.push('/results');
   };
 
-  // Automate Bot turns in offline Bot mode
+  // Fast Computer turns in Solo mode (180ms step delay)
   useEffect(() => {
     if (!isBotMode) return;
     const currentTurnPlayer =
@@ -233,10 +216,9 @@ export default function LudoScreen() {
     setBotProcessing(true);
 
     const runBotTurn = async () => {
-      await new Promise((r) => setTimeout(r, 650));
+      await new Promise((r) => setTimeout(r, 180));
       if (cancelled) return;
 
-      // Step 1: Bot rolls the dice
       if (localLudoState.canRollDice) {
         animateDice();
         const rollOut = LudoEngine.applyDiceRoll(localLudoState);
@@ -247,7 +229,6 @@ export default function LudoScreen() {
         return;
       }
 
-      // Step 2: Bot chooses and executes a token move
       const chosen = botRef.current.selectBotMove(localLudoState, botDifficulty);
       if (!chosen) {
         setBotProcessing(false);
@@ -282,7 +263,6 @@ export default function LudoScreen() {
     if (isBotMode) {
       const rollOut = LudoEngine.applyDiceRoll(localLudoState);
       setLocalLudoState(rollOut.state);
-      // If only 1 legal move exists and all other tokens are in base, let player tap it
     } else {
       const res = await socketService.ludoRollDice();
       if (!res.success) {
@@ -333,7 +313,6 @@ export default function LudoScreen() {
     ]);
   };
 
-  // Group all active tokens by their (row, col) on the 15x15 board
   const tokensByCoord = useMemo(() => {
     const map = new Map<string, LudoToken[]>();
     for (const col of activeState.activeColors) {
@@ -348,15 +327,12 @@ export default function LudoScreen() {
     return map;
   }, [activeState]);
 
-  // Helper to determine cell background color on the 15x15 Ludo board
   const getCellStyle = (r: number, c: number) => {
-    // 4 Corner Yards (6x6)
     if (r < 6 && c < 6) return { backgroundColor: COLOR_LIGHT_BG.red };
     if (r < 6 && c >= 9) return { backgroundColor: COLOR_LIGHT_BG.green };
     if (r >= 9 && c >= 9) return { backgroundColor: COLOR_LIGHT_BG.yellow };
     if (r >= 9 && c < 6) return { backgroundColor: COLOR_LIGHT_BG.blue };
 
-    // Center 3x3 Home Box (rows 6..8, cols 6..8)
     if (r >= 6 && r <= 8 && c >= 6 && c <= 8) {
       if (r === 7 && c === 6) return { backgroundColor: COLOR_HEX.red };
       if (r === 6 && c === 7) return { backgroundColor: COLOR_HEX.green };
@@ -365,13 +341,11 @@ export default function LudoScreen() {
       return { backgroundColor: '#ffd700' };
     }
 
-    // Colored Home Stretches
     if (r === 7 && c >= 1 && c <= 5) return { backgroundColor: COLOR_HEX.red };
     if (c === 7 && r >= 1 && r <= 5) return { backgroundColor: COLOR_HEX.green };
     if (r === 7 && c >= 9 && c <= 13) return { backgroundColor: COLOR_HEX.yellow };
     if (c === 7 && r >= 9 && r <= 13) return { backgroundColor: COLOR_HEX.blue };
 
-    // Colored Start Squares
     if (r === 6 && c === 1) return { backgroundColor: COLOR_HEX.red };
     if (r === 1 && c === 8) return { backgroundColor: COLOR_HEX.green };
     if (r === 8 && c === 13) return { backgroundColor: COLOR_HEX.yellow };
@@ -385,13 +359,16 @@ export default function LudoScreen() {
     return idx !== -1 && SAFE_GLOBAL_SQUARES.has(idx);
   };
 
+  const diffCapitalized =
+    botDifficulty.charAt(0).toUpperCase() + botDifficulty.slice(1);
+
   return (
     <SafeAreaView style={styles.safeArea}>
       <GameHeader
         title="Classic Ludo"
         subtitle={
           isBotMode
-            ? `1 Human vs ${ludoBotCount} ${botDifficulty.toUpperCase()} AI`
+            ? `Single Player - 1 vs ${ludoBotCount} (${diffCapitalized})`
             : `Room ${roomCode}`
         }
         onBackPress={handleLeave}
@@ -410,7 +387,7 @@ export default function LudoScreen() {
             const label = isMe
               ? 'YOU'
               : isBotMode
-              ? `${col.toUpperCase()} BOT`
+              ? `${col.toUpperCase()} CPU`
               : players[pId]?.username || col.toUpperCase();
 
             return (
@@ -438,7 +415,7 @@ export default function LudoScreen() {
 
         {/* Action Banner */}
         <View style={styles.actionBanner}>
-          <Sparkles size={15} color="#00e5ff" />
+          <Shield size={15} color="#00e5ff" />
           <Text style={styles.actionBannerText} numberOfLines={1}>
             {activeState.lastActionText}
           </Text>
@@ -459,7 +436,7 @@ export default function LudoScreen() {
                     style={[styles.ludoCell, getCellStyle(r, c)]}
                   >
                     {isSafe && cellTokens.length === 0 && (
-                      <Text style={styles.starIcon}>★</Text>
+                      <Star size={CELL * 0.48} color="#94a3b8" />
                     )}
                     {isCenterCrown && (
                       <Trophy size={CELL * 0.65} color="#050816" />
@@ -503,12 +480,12 @@ export default function LudoScreen() {
             <Text style={styles.turnTitle}>
               {isMyTurn
                 ? activeState.canRollDice
-                  ? 'YOUR TURN — Tap Dice to Roll!'
-                  : 'TAP A GLOWING TOKEN TO MOVE!'
-                : `Waiting for ${activeState.currentTurnColor.toUpperCase()}...`}
+                  ? 'YOUR TURN — Tap Dice to Roll'
+                  : 'TAP A HIGHLIGHTED TOKEN TO MOVE'
+                : `${activeState.currentTurnColor.toUpperCase()} Turn`}
             </Text>
             <Text style={styles.turnSubtitle}>
-              Roll a 6 to deploy a token from your yard • Star squares (★) are safe
+              Roll a 6 to deploy a token from your yard. Star squares are safe.
             </Text>
           </View>
 
@@ -564,33 +541,33 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingBottom: 24,
     alignItems: 'center',
+    gap: 10,
   },
   playersRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 8,
     width: '100%',
-    marginBottom: 8,
   },
   colorCard: {
     flex: 1,
-    minWidth: '46%',
+    minWidth: 75,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    backgroundColor: '#0c122e',
+    backgroundColor: '#0f1636',
+    borderRadius: 12,
     paddingHorizontal: 10,
     paddingVertical: 8,
-    borderRadius: 12,
     borderWidth: 1.5,
   },
   colorDot: {
-    width: 14,
-    height: 14,
-    borderRadius: 7,
+    width: 12,
+    height: 12,
+    borderRadius: 6,
   },
   colorCardName: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '900',
     color: '#f8fafc',
   },
@@ -603,27 +580,27 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    width: '100%',
     backgroundColor: '#0f1636',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
     borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
     borderWidth: 1,
     borderColor: '#1e2b5e',
-    marginBottom: 8,
+    width: '100%',
   },
   actionBannerText: {
     fontSize: 12,
     fontWeight: '800',
-    color: '#e2e8f0',
+    color: '#00e5ff',
     flex: 1,
   },
   ludoBoardContainer: {
     width: EXACT_BOARD_SIZE + 6,
     height: EXACT_BOARD_SIZE + 6,
-    padding: 3,
-    backgroundColor: '#1e2b5e',
-    borderRadius: 16,
+    borderRadius: 14,
+    borderWidth: 3,
+    borderColor: '#3b4f99',
+    backgroundColor: '#0f172a',
     overflow: 'hidden',
   },
   ludoRow: {
@@ -633,34 +610,24 @@ const styles = StyleSheet.create({
     width: CELL,
     height: CELL,
     borderWidth: 0.5,
-    borderColor: 'rgba(15, 23, 42, 0.55)',
+    borderColor: 'rgba(148, 163, 184, 0.22)',
     alignItems: 'center',
     justifyContent: 'center',
-    position: 'relative',
-  },
-  starIcon: {
-    fontSize: CELL * 0.58,
-    color: 'rgba(255, 255, 255, 0.65)',
   },
   tokenDisk: {
-    width: CELL * 0.82,
-    height: CELL * 0.82,
-    borderRadius: CELL * 0.41,
-    borderWidth: 2,
+    width: CELL * 0.78,
+    height: CELL * 0.78,
+    borderRadius: CELL * 0.39,
+    borderWidth: 1.8,
     borderColor: '#ffffff',
     alignItems: 'center',
     justifyContent: 'center',
-    position: 'absolute',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.5,
-    shadowRadius: 3,
     elevation: 4,
   },
   tokenMovableGlow: {
-    borderColor: '#ffd700',
+    borderColor: '#00ff87',
     borderWidth: 2.5,
-    transform: [{ scale: 1.15 }],
+    transform: [{ scale: 1.12 }],
   },
   tokenNumText: {
     fontSize: 9,
@@ -671,13 +638,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    width: '100%',
-    backgroundColor: '#0c122e',
+    backgroundColor: '#0f1636',
     borderRadius: 18,
     padding: 14,
-    marginTop: 10,
     borderWidth: 1.5,
     borderColor: '#1e2b5e',
+    width: '100%',
     gap: 12,
   },
   turnInfoCol: {
@@ -686,7 +652,7 @@ const styles = StyleSheet.create({
   turnTitle: {
     fontSize: 14,
     fontWeight: '900',
-    color: '#00e5ff',
+    color: '#f8fafc',
   },
   turnSubtitle: {
     fontSize: 11,
@@ -695,21 +661,21 @@ const styles = StyleSheet.create({
   },
   diceButton: {
     width: 78,
-    height: 64,
-    borderRadius: 16,
-    backgroundColor: '#161f48',
-    borderWidth: 2,
+    height: 78,
+    borderRadius: 20,
+    backgroundColor: '#17214b',
+    borderWidth: 2.5,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 2,
+    gap: 4,
   },
   diceButtonActive: {
     backgroundColor: '#00ff87',
     borderColor: '#ffffff',
   },
   diceValueText: {
-    fontSize: 15,
+    fontSize: 16,
     fontWeight: '900',
-    color: '#ffffff',
+    color: '#00e5ff',
   },
 });
