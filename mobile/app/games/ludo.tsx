@@ -25,6 +25,8 @@ import {
 } from '../../engines/ludo/rules';
 import { LudoBot } from '../../engines/ludo/bot';
 import { socketService } from '../../services/socket';
+import { useGraphicsStore } from '../../store/graphicsStore';
+import { LudoScene3D } from '../../components/3d/ludo/LudoScene3D';
 import {
   LudoColor,
   LudoState,
@@ -153,6 +155,8 @@ export default function LudoScreen() {
       activeState.diceValue
     );
   }, [activeState]);
+
+  const fallback2D = useGraphicsStore((s) => s.fallback2D);
 
   const animateDice = () => {
     diceSpinAnim.setValue(0.75);
@@ -421,58 +425,76 @@ export default function LudoScreen() {
           </Text>
         </View>
 
-        {/* 15x15 Classic Ludo Board */}
-        <View style={styles.ludoBoardContainer}>
-          {Array.from({ length: 15 }, (_, r) => (
-            <View key={r} style={styles.ludoRow}>
-              {Array.from({ length: 15 }, (_, c) => {
-                const cellTokens = tokensByCoord.get(`${r},${c}`) || [];
-                const isSafe = isStarSafeCell(r, c);
-                const isCenterCrown = r === 7 && c === 7;
+        {/* 15x15 Classic Ludo Board (Real 3D GPU Render or 2D Fallback) */}
+        {!fallback2D ? (
+          <LudoScene3D
+            activeState={activeState}
+            myColor={myColor}
+            movableTokenIds={legalMovesForCurrentTurn.map((m) => m.tokenId)}
+            selectedTokenId={null}
+            canRoll={isMyTurn && activeState.canRollDice && !botProcessing}
+            onTokenPress={(color, tokenId) => {
+              if (color === myColor) {
+                const tok = activeState.tokens[color].find((t) => t.id === tokenId);
+                if (tok) handleTokenPress(tok);
+              }
+            }}
+            onRollDice={handleRollDice}
+            isWinner={activeState.winnerOrder[0] === myColor}
+          />
+        ) : (
+          <View style={styles.ludoBoardContainer}>
+            {Array.from({ length: 15 }, (_, r) => (
+              <View key={r} style={styles.ludoRow}>
+                {Array.from({ length: 15 }, (_, c) => {
+                  const cellTokens = tokensByCoord.get(`${r},${c}`) || [];
+                  const isSafe = isStarSafeCell(r, c);
+                  const isCenterCrown = r === 7 && c === 7;
 
-                return (
-                  <View
-                    key={c}
-                    style={[styles.ludoCell, getCellStyle(r, c)]}
-                  >
-                    {isSafe && cellTokens.length === 0 && (
-                      <Star size={CELL * 0.48} color="#94a3b8" />
-                    )}
-                    {isCenterCrown && (
-                      <Trophy size={CELL * 0.65} color="#050816" />
-                    )}
+                  return (
+                    <View
+                      key={c}
+                      style={[styles.ludoCell, getCellStyle(r, c)]}
+                    >
+                      {isSafe && cellTokens.length === 0 && (
+                        <Star size={CELL * 0.48} color="#94a3b8" />
+                      )}
+                      {isCenterCrown && (
+                        <Trophy size={CELL * 0.65} color="#050816" />
+                      )}
 
-                    {cellTokens.map((tok, idx) => {
-                      const canMoveThis =
-                        isMyTurn &&
-                        !activeState.canRollDice &&
-                        tok.color === myColor &&
-                        legalMovesForCurrentTurn.some(
-                          (m) => m.tokenId === tok.id
+                      {cellTokens.map((tok, idx) => {
+                        const canMoveThis =
+                          isMyTurn &&
+                          !activeState.canRollDice &&
+                          tok.color === myColor &&
+                          legalMovesForCurrentTurn.some(
+                            (m) => m.tokenId === tok.id
+                          );
+
+                        return (
+                          <TouchableOpacity
+                            key={`${tok.color}-${tok.id}-${idx}`}
+                            activeOpacity={0.75}
+                            onPress={() => handleTokenPress(tok)}
+                            disabled={!canMoveThis}
+                            style={[
+                              styles.tokenDisk,
+                              { backgroundColor: COLOR_HEX[tok.color] },
+                              canMoveThis && styles.tokenMovableGlow,
+                            ]}
+                          >
+                            <Text style={styles.tokenNumText}>{tok.id + 1}</Text>
+                          </TouchableOpacity>
                         );
-
-                      return (
-                        <TouchableOpacity
-                          key={`${tok.color}-${tok.id}-${idx}`}
-                          activeOpacity={0.75}
-                          onPress={() => handleTokenPress(tok)}
-                          disabled={!canMoveThis}
-                          style={[
-                            styles.tokenDisk,
-                            { backgroundColor: COLOR_HEX[tok.color] },
-                            canMoveThis && styles.tokenMovableGlow,
-                          ]}
-                        >
-                          <Text style={styles.tokenNumText}>{tok.id + 1}</Text>
-                        </TouchableOpacity>
-                      );
-                    })}
-                  </View>
-                );
-              })}
-            </View>
-          ))}
-        </View>
+                      })}
+                    </View>
+                  );
+                })}
+              </View>
+            ))}
+          </View>
+        )}
 
         {/* Bottom Dice & Turn Control Bar */}
         <View style={styles.diceBar}>

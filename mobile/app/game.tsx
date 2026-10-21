@@ -14,6 +14,8 @@ import { GameHeader } from '../components/GameHeader';
 import { PlayerCard } from '../components/PlayerCard';
 import { BingoProgress } from '../components/BingoProgress';
 import { BingoBoard } from '../components/BingoBoard';
+import { BingoScene3D } from '../components/3d/bingo/BingoScene3D';
+import { useGraphicsStore } from '../store/graphicsStore';
 import { useGame } from '../hooks/useGame';
 import { useRoom } from '../hooks/useRoom';
 import { usePlayerStore } from '../store/playerStore';
@@ -38,6 +40,7 @@ export default function GameScreen() {
   const avatarUrl = usePlayerStore((s) => s.avatarUrl);
   const soundEnabled = usePlayerStore((s) => s.soundEnabled);
   const setSoundEnabled = usePlayerStore((s) => s.setSoundEnabled);
+  const fallback2D = useGraphicsStore((s) => s.fallback2D);
 
   const [callLoading, setCallLoading] = useState(false);
 
@@ -131,15 +134,26 @@ export default function GameScreen() {
         {/* B-I-N-G-O Progress */}
         <BingoProgress linesCompleted={myLines} />
 
-        {/* 5x5 Grid */}
+        {/* 5x5 Grid (3D GPU Render or 2D Fallback) */}
         <View style={styles.boardWrapper}>
-          <BingoBoard
-            board={myBoard}
-            calledNumbers={calledNumbers}
-            lastCalledNumber={lastCalledNumber}
-            onCellPress={handleCellPress}
-            disabled={!isMyTurn || callLoading}
-          />
+          {!fallback2D ? (
+            <BingoScene3D
+              board={myBoard}
+              calledNumbers={calledNumbers}
+              lastCalledNumber={lastCalledNumber}
+              onCellPress={handleCellPress}
+              disabled={!isMyTurn || callLoading}
+              isWinner={myLines >= 5}
+            />
+          ) : (
+            <BingoBoard
+              board={myBoard}
+              calledNumbers={calledNumbers}
+              lastCalledNumber={lastCalledNumber}
+              onCellPress={handleCellPress}
+              disabled={!isMyTurn || callLoading}
+            />
+          )}
         </View>
 
         {/* Bottom Bar: Last Called Number & Status */}

@@ -29,6 +29,8 @@ import { usePlayerStore } from '../../store/playerStore';
 import { ChessEngine } from '../../engines/chess/engine';
 import { ChessBot } from '../../engines/chess/bot';
 import { socketService } from '../../services/socket';
+import { useGraphicsStore } from '../../store/graphicsStore';
+import { ChessScene3D } from '../../components/3d/chess/ChessScene3D';
 import {
   ChessColor,
   ChessPieceSymbol,
@@ -137,6 +139,7 @@ export default function ChessScreen() {
     to: string;
   } | null>(null);
   const [botThinking, setBotThinking] = useState(false);
+  const fallback2D = useGraphicsStore((s) => s.fallback2D);
 
   const activeState = isBotMode
     ? localChessState
@@ -164,6 +167,19 @@ export default function ChessScreen() {
     if (!selectedSquare || !isMyTurn) return [];
     return ChessEngine.getLegalMovesFromSquare(activeState.fen, selectedSquare);
   }, [activeState.fen, selectedSquare, isMyTurn]);
+
+  const checkedKingSquare = useMemo(() => {
+    if (!activeState.inCheck) return null;
+    for (let r = 0; r < 8; r++) {
+      for (let c = 0; c < 8; c++) {
+        const cell = boardMatrix[r][c];
+        if (cell && cell.type === 'k' && cell.color === activeState.turn) {
+          return `${FILES[c]}${RANKS[r]}`;
+        }
+      }
+    }
+    return null;
+  }, [activeState.inCheck, activeState.turn, boardMatrix]);
 
   const finalizeBotMatch = (
     finishedState: ChessState,
@@ -418,79 +434,92 @@ export default function ChessScreen() {
           </View>
         )}
 
-        {/* 8x8 Chessboard */}
-        <View style={styles.boardFrame}>
-          {boardMatrix.map((row, rIdx) => (
-            <View key={rIdx} style={styles.boardRow}>
-              {row.map((cell, cIdx) => {
-                const squareName = `${FILES[cIdx]}${RANKS[rIdx]}`;
-                const isLightSquare = (rIdx + cIdx) % 2 === 0;
-                const isSelected = selectedSquare === squareName;
-                const targetMove = legalTargets.find((t) => t.to === squareName);
-                const isLastMove =
-                  activeState.lastMove?.from === squareName ||
-                  activeState.lastMove?.to === squareName;
-                const isKingInCheck =
-                  activeState.inCheck &&
-                  cell?.type === 'k' &&
-                  cell?.color === activeState.turn;
+        {/* 8x8 Chessboard (Real 3D GPU Render or 2D Fallback) */}
+        {!fallback2D ? (
+          <ChessScene3D
+            boardMatrix={boardMatrix}
+            selectedSquare={selectedSquare}
+            legalTargets={legalTargets}
+            lastMove={activeState.lastMove}
+            checkSquare={checkedKingSquare}
+            myColor={myColor}
+            onSquarePress={handleSquarePress}
+            disabled={!isMyTurn && !isBotMode}
+          />
+        ) : (
+          <View style={styles.boardFrame}>
+            {boardMatrix.map((row, rIdx) => (
+              <View key={rIdx} style={styles.boardRow}>
+                {row.map((cell, cIdx) => {
+                  const squareName = `${FILES[cIdx]}${RANKS[rIdx]}`;
+                  const isLightSquare = (rIdx + cIdx) % 2 === 0;
+                  const isSelected = selectedSquare === squareName;
+                  const targetMove = legalTargets.find((t) => t.to === squareName);
+                  const isLastMove =
+                    activeState.lastMove?.from === squareName ||
+                    activeState.lastMove?.to === squareName;
+                  const isKingInCheck =
+                    activeState.inCheck &&
+                    cell?.type === 'k' &&
+                    cell?.color === activeState.turn;
 
-                return (
-                  <TouchableOpacity
-                    key={squareName}
-                    activeOpacity={0.85}
-                    onPress={() => handleSquarePress(squareName, cell?.color as ChessColor)}
-                    style={[
-                      styles.square,
-                      isLightSquare ? styles.lightSquare : styles.darkSquare,
-                      isLastMove && styles.lastMoveSquare,
-                      isSelected && styles.selectedSquare,
-                      isKingInCheck && styles.checkSquare,
-                    ]}
-                  >
-                    {cIdx === 0 && (
-                      <Text
-                        style={[
-                          styles.rankCoord,
-                          { color: isLightSquare ? '#334155' : '#94a3b8' },
-                        ]}
-                      >
-                        {RANKS[rIdx]}
-                      </Text>
-                    )}
-                    {rIdx === 7 && (
-                      <Text
-                        style={[
-                          styles.fileCoord,
-                          { color: isLightSquare ? '#334155' : '#94a3b8' },
-                        ]}
-                      >
-                        {FILES[cIdx]}
-                      </Text>
-                    )}
+                  return (
+                    <TouchableOpacity
+                      key={squareName}
+                      activeOpacity={0.85}
+                      onPress={() => handleSquarePress(squareName, cell?.color as ChessColor)}
+                      style={[
+                        styles.square,
+                        isLightSquare ? styles.lightSquare : styles.darkSquare,
+                        isLastMove && styles.lastMoveSquare,
+                        isSelected && styles.selectedSquare,
+                        isKingInCheck && styles.checkSquare,
+                      ]}
+                    >
+                      {cIdx === 0 && (
+                        <Text
+                          style={[
+                            styles.rankCoord,
+                            { color: isLightSquare ? '#334155' : '#94a3b8' },
+                          ]}
+                        >
+                          {RANKS[rIdx]}
+                        </Text>
+                      )}
+                      {rIdx === 7 && (
+                        <Text
+                          style={[
+                            styles.fileCoord,
+                            { color: isLightSquare ? '#334155' : '#94a3b8' },
+                          ]}
+                        >
+                          {FILES[cIdx]}
+                        </Text>
+                      )}
 
-                    {cell && (
-                      <ChessPieceVector
-                        type={cell.type as ChessPieceSymbol}
-                        color={cell.color as ChessColor}
-                      />
-                    )}
+                      {cell && (
+                        <ChessPieceVector
+                          type={cell.type as ChessPieceSymbol}
+                          color={cell.color as ChessColor}
+                        />
+                      )}
 
-                    {targetMove && (
-                      <View
-                        style={
-                          targetMove.isCapture
-                            ? styles.captureRing
-                            : styles.legalMoveDot
-                        }
-                      />
-                    )}
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
-          ))}
-        </View>
+                      {targetMove && (
+                        <View
+                          style={
+                            targetMove.isCapture
+                              ? styles.captureRing
+                              : styles.legalMoveDot
+                          }
+                        />
+                      )}
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            ))}
+          </View>
+        )}
 
         {/* Bottom Self Player Bar */}
         <View style={[styles.playerBar, isMyTurn && styles.activePlayerBar]}>
