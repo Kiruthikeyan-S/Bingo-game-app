@@ -35,7 +35,7 @@ import { getStorage, FirebaseStorage, ref, uploadBytes, getDownloadURL } from 'f
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export const firebaseConfig = {
-  apiKey: "AIzaSyAlF1KHm5yJ7vmX6f-kahNu_B1upX9BAUo",
+  apiKey: "make yo",
   authDomain: "gamehub-3d.firebaseapp.com",
   projectId: "gamehub-3d",
   storageBucket: "gamehub-3d.firebasestorage.app",
