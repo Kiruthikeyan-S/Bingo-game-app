@@ -213,7 +213,13 @@ export default function ChessScreen() {
   const botRef = useRef<ChessBot>(new ChessBot(botDifficulty));
 
   useEffect(() => {
-    botRef.current.setDifficulty(botDifficulty);
+    if (botRef.current) {
+      if (typeof botRef.current.changeDifficulty === 'function') {
+        botRef.current.changeDifficulty(botDifficulty);
+      } else if (typeof (botRef.current as any).setDifficulty === 'function') {
+        (botRef.current as any).setDifficulty(botDifficulty);
+      }
+    }
   }, [botDifficulty]);
 
   const opponentName = useMemo(() => {

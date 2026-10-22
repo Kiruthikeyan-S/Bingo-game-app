@@ -15,6 +15,7 @@ export interface ISmartBot<TState, TMove> {
     }
   ): Promise<TMove | null>;
   changeDifficulty(difficulty: BotDifficulty): void;
+  setDifficulty?(difficulty: BotDifficulty): void;
 }
 
 /**
@@ -33,6 +34,10 @@ export abstract class SmartBotBase<TState, TMove> implements ISmartBot<TState, T
   }
 
   public changeDifficulty(difficulty: BotDifficulty): void {
+    this.difficulty = difficulty;
+  }
+
+  public setDifficulty(difficulty: BotDifficulty): void {
     this.difficulty = difficulty;
   }
 
