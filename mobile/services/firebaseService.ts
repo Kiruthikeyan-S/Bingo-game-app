@@ -22,8 +22,10 @@ import {
   getDownloadURL,
 } from './firebase';
 import { LeaderboardEntry } from './api';
-import { usePlayerStore } from '../store/playerStore';
 import { AVATAR_OPTIONS } from '../constants/avatars';
+
+// Lazy getter to break circular require cycle with playerStore
+const getPlayerStore = () => require('../store/playerStore').usePlayerStore;
 
 export interface FirebaseUserProfile {
   uid: string;
@@ -90,7 +92,7 @@ class FirebaseService {
 
       await setDoc(doc(db, 'users', user.uid), initialProfile, { merge: true });
 
-      usePlayerStore.getState().setProfile({
+      getPlayerStore().getState().setProfile({
         playerId: user.uid,
         username: initialProfile.username,
         avatarUrl: initialProfile.avatarUrl,
@@ -173,7 +175,7 @@ class FirebaseService {
   public async logout(): Promise<{ success: boolean }> {
     try {
       await signOut(auth);
-      usePlayerStore.getState().resetProfile();
+      getPlayerStore().getState().resetProfile();
       return { success: true };
     } catch {
       return { success: false };
@@ -253,7 +255,7 @@ class FirebaseService {
 
       // update firestore and player store
       await this.syncProfileToFirestore({ avatarUrl: downloadUrl });
-      usePlayerStore.getState().setProfile({ avatarUrl: downloadUrl });
+      getPlayerStore().getState().setProfile({ avatarUrl: downloadUrl });
 
       return { success: true, downloadUrl };
     } catch (err: any) {
@@ -269,13 +271,13 @@ class FirebaseService {
       const snap = await getDoc(doc(db, 'users', user.uid));
       if (snap.exists()) {
         const data = snap.data() as FirebaseUserProfile;
-        usePlayerStore.getState().setProfile({
+        getPlayerStore().getState().setProfile({
           playerId: user.uid,
           username: data.username || user.displayName || 'Player',
           avatarUrl: data.avatarUrl || AVATAR_OPTIONS[0],
         });
         if (typeof data.coins === 'number') {
-          usePlayerStore.setState({ coins: data.coins });
+          getPlayerStore().setState({ coins: data.coins });
         }
       }
     } catch (err) {
