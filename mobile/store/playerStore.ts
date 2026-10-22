@@ -1,22 +1,25 @@
 import { create } from 'zustand';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { FriendItem, GameType, MatchHistoryItem } from '../../shared/types';
+import { AVATAR_OPTIONS } from '../constants/avatars';
+
+export { AVATAR_OPTIONS };
 
 export interface PlayerProfile {
   id?: string;
   playerId?: string;
   username: string;
   avatarUrl: string;
+  email?: string | null;
 }
 
-export const AVATAR_OPTIONS = [
-  'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=120',
-  'https://images.unsplash.com/photo-1570295999919-56ceb5ecca61?w=120',
-  'https://images.unsplash.com/photo-1580489944761-15a19d654956?w=120',
-  'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=120',
-  'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=120',
-  'https://images.unsplash.com/photo-1522075469751-3a6694fb2f61?w=120',
-];
+// Lazy helper to avoid require cycle
+const syncToFirebase = (data: any) => {
+  try {
+    const { firebaseService } = require('../services/firebaseService');
+    firebaseService.syncProfileToFirestore(data);
+  } catch {}
+};
 
 export interface GameStatsBreakdown {
   played: number;
@@ -56,6 +59,7 @@ interface PlayerStoreState {
   playerId: string;
   username: string;
   avatarUrl: string;
+  email: string | null;
   coins: number;
   theme: 'dark' | 'light';
   soundEnabled: boolean;
@@ -96,6 +100,7 @@ export const usePlayerStore = create<PlayerStoreState>((set, get) => ({
   playerId: `p_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
   username: 'LuckyPlayer',
   avatarUrl: AVATAR_OPTIONS[0],
+  email: null,
   coins: 1250,
   theme: 'dark',
   soundEnabled: true,
@@ -118,14 +123,18 @@ export const usePlayerStore = create<PlayerStoreState>((set, get) => ({
         playerId: profile.playerId || profile.id || state.playerId,
         username: profile.username ?? state.username,
         avatarUrl: profile.avatarUrl ?? state.avatarUrl,
+        email: profile.email !== undefined ? profile.email : state.email,
         isRegistered: true,
       };
+
+      // Sync with AsyncStorage for offline use
       AsyncStorage.setItem(
         STORAGE_KEY,
         JSON.stringify({
           playerId: next.playerId,
           username: next.username,
           avatarUrl: next.avatarUrl,
+          email: next.email,
           coins: next.coins,
           theme: next.theme,
           stats: next.stats,
@@ -134,6 +143,20 @@ export const usePlayerStore = create<PlayerStoreState>((set, get) => ({
           isRegistered: next.isRegistered,
         })
       ).catch(() => {});
+
+      // Sync with Firebase Firestore Cloud
+      syncToFirebase({
+        username: next.username,
+        avatarUrl: next.avatarUrl,
+        coins: next.coins,
+        stats: {
+          played: next.stats.played,
+          wins: next.stats.wins,
+          losses: next.stats.losses,
+          draws: next.stats.draws,
+        },
+      });
+
       return next;
     }),
 
@@ -145,7 +168,11 @@ export const usePlayerStore = create<PlayerStoreState>((set, get) => ({
     set((state) => ({ theme: state.theme === 'dark' ? 'light' : 'dark' })),
 
   addCoins: (amount) =>
-    set((state) => ({ coins: Math.max(0, state.coins + amount) })),
+    set((state) => {
+      const newCoins = Math.max(0, state.coins + amount);
+      syncToFirebase({ coins: newCoins });
+      return { coins: newCoins };
+    }),
 
   recordMatchResult: (entry) =>
     set((state) => {
@@ -192,6 +219,7 @@ export const usePlayerStore = create<PlayerStoreState>((set, get) => ({
           playerId: state.playerId,
           username: state.username,
           avatarUrl: state.avatarUrl,
+          email: state.email,
           coins: nextCoins,
           theme: state.theme,
           stats: nextStats,
@@ -200,6 +228,17 @@ export const usePlayerStore = create<PlayerStoreState>((set, get) => ({
           isRegistered: state.isRegistered,
         })
       ).catch(() => {});
+
+      // Cloud Firestore sync
+      syncToFirebase({
+        coins: nextCoins,
+        stats: {
+          played: nextStats.played,
+          wins: nextStats.wins,
+          losses: nextStats.losses,
+          draws: nextStats.draws,
+        },
+      });
 
       return {
         coins: nextCoins,
@@ -238,6 +277,7 @@ export const usePlayerStore = create<PlayerStoreState>((set, get) => ({
         playerId: parsed.playerId || state.playerId,
         username: parsed.username || state.username,
         avatarUrl: parsed.avatarUrl || state.avatarUrl,
+        email: parsed.email || state.email,
         coins: typeof parsed.coins === 'number' ? parsed.coins : state.coins,
         theme: parsed.theme || state.theme,
         stats: parsed.stats || state.stats,
@@ -256,6 +296,7 @@ export const usePlayerStore = create<PlayerStoreState>((set, get) => ({
       playerId: `p_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
       username: 'LuckyPlayer',
       avatarUrl: AVATAR_OPTIONS[0],
+      email: null,
       coins: 1250,
       isRegistered: false,
       stats: {

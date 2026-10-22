@@ -7,6 +7,7 @@ import {
   ScrollView,
   Switch,
   TouchableOpacity,
+  Alert,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -18,30 +19,38 @@ import {
   Edit2,
   Trophy,
   ShieldCheck,
+  Cloud,
 } from 'lucide-react-native';
 import { GameHeader } from '../components/GameHeader';
 import { GameButton } from '../components/GameButton';
 import { BottomNavBar } from '../components/BottomNavBar';
 import { usePlayerStore } from '../store/playerStore';
+import { firebaseService } from '../services/firebaseService';
+import { auth } from '../services/firebase';
 
 export default function ProfileScreen() {
   const router = useRouter();
   const username = usePlayerStore((s) => s.username);
   const avatarUrl = usePlayerStore((s) => s.avatarUrl);
+  const email = usePlayerStore((s) => s.email);
+  const coins = usePlayerStore((s) => s.coins);
   const soundEnabled = usePlayerStore((s) => s.soundEnabled);
   const setSoundEnabled = usePlayerStore((s) => s.setSoundEnabled);
   const hapticsEnabled = usePlayerStore((s) => s.hapticsEnabled);
   const setHapticsEnabled = usePlayerStore((s) => s.setHapticsEnabled);
-  const resetProfile = usePlayerStore((s) => s.resetProfile);
 
-  const handleLogout = () => {
-    resetProfile();
+  const currentUser = auth.currentUser;
+  const isAnonymous = currentUser?.isAnonymous ?? true;
+  const displayEmail = email || currentUser?.email || (isAnonymous ? 'Guest Account' : 'Verified Warrior');
+
+  const handleLogout = async () => {
+    await firebaseService.logout();
     router.replace('/login');
   };
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <GameHeader title="Player Profile" subtitle="Identity & Settings" />
+      <GameHeader title="Player Profile" subtitle="Identity & Firebase Cloud" />
 
       <ScrollView contentContainerStyle={styles.content}>
         {/* Profile Card */}
@@ -57,19 +66,25 @@ export default function ProfileScreen() {
           </View>
 
           <Text style={styles.username}>{username}</Text>
-          <Text style={styles.guestBadge}>GUEST WARRIOR</Text>
+          <View style={styles.badgeRow}>
+            <Cloud size={12} color="#00e5ff" />
+            <Text style={styles.guestBadge}>
+              {isAnonymous ? 'GUEST WARRIOR (FIREBASE)' : 'FIREBASE CLOUD ACCOUNT'}
+            </Text>
+          </View>
+          <Text style={styles.emailSub}>{displayEmail}</Text>
         </View>
 
         {/* Quick Stats Grid */}
         <View style={styles.statsGrid}>
           <View style={styles.statBox}>
             <Trophy size={20} color="#ffd700" />
-            <Text style={styles.statVal}>Level 1</Text>
-            <Text style={styles.statLabel}>RANK</Text>
+            <Text style={styles.statVal}>{coins} Coins</Text>
+            <Text style={styles.statLabel}>TREASURY</Text>
           </View>
           <View style={styles.statBox}>
             <ShieldCheck size={20} color="#00e5ff" />
-            <Text style={styles.statVal}>Active</Text>
+            <Text style={styles.statVal}>Cloud Synced</Text>
             <Text style={styles.statLabel}>STATUS</Text>
           </View>
         </View>
@@ -113,15 +128,15 @@ export default function ProfileScreen() {
 
         {/* Account Actions */}
         <View style={styles.section}>
-          <Text style={styles.sectionHeader}>ACCOUNT</Text>
+          <Text style={styles.sectionHeader}>FIREBASE CLOUD ACCOUNT</Text>
           <GameButton
-            title="Switch Avatar & Name"
+            title={isAnonymous ? 'Link / Create Full Account' : 'Switch Account'}
             variant="outline"
             onPress={() => router.push('/login')}
             icon={<User size={18} color="#a5b4fc" />}
           />
           <GameButton
-            title="Reset Profile / Logout"
+            title="Log Out & Clear Profile"
             variant="danger"
             onPress={handleLogout}
             icon={<LogOut size={18} color="#ffffff" />}
@@ -180,12 +195,23 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     color: '#f8fafc',
   },
+  badgeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 6,
+  },
   guestBadge: {
     fontSize: 11,
     fontWeight: '800',
     color: '#a5b4fc',
     letterSpacing: 1.5,
+  },
+  emailSub: {
+    fontSize: 12,
+    color: '#64748b',
     marginTop: 4,
+    fontWeight: '500',
   },
   statsGrid: {
     flexDirection: 'row',
@@ -202,7 +228,7 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   statVal: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '800',
     color: '#f8fafc',
     marginTop: 4,
