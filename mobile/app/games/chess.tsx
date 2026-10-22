@@ -52,59 +52,74 @@ const ChessPieceVector: React.FC<{
   type: ChessPieceSymbol;
   color: ChessColor;
   size?: number;
-}> = ({ type, color, size = SQUARE_SIZE * 0.74 }) => {
-  const fill = color === 'w' ? '#F8FAFC' : '#0F172A';
-  const stroke = color === 'w' ? '#1E293B' : '#94A3B8';
-  const innerAccent = color === 'w' ? '#CBD5E1' : '#334155';
+}> = ({ type, color, size = SQUARE_SIZE * 0.82 }) => {
+  const isWhite = color === 'w';
+  const fill = isWhite ? '#FFFFFF' : '#312E2B';
+  const stroke = isWhite ? '#272522' : '#181614';
+  const highlight = isWhite ? '#F0F0F0' : '#45413D';
 
   return (
     <Svg width={size} height={size} viewBox="0 0 45 45">
-      <G fill={fill} stroke={stroke} strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round">
+      <G fill={fill} stroke={stroke} strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
         {type === 'p' && (
           <>
-            <Circle cx="22.5" cy="13" r="5.5" />
-            <Path d="M16.5 23 C16.5 19.5 28.5 19.5 28.5 23 L26.5 33 L18.5 33 Z" />
-            <Rect x="13" y="33" width="19" height="4.5" rx="2" />
+            <Circle cx="22.5" cy="11.5" r="5.5" />
+            <Path d="M19.5 17 C16 23 16 28 17 33 L28 33 C29 28 29 23 25.5 17 Z" />
+            <Path d="M18 19 C21 20 24 20 27 19" stroke={stroke} strokeWidth={1.5} fill="none" />
+            <Rect x="13.5" y="33" width="18" height="4.5" rx="2" />
+            <Rect x="11.5" y="37.5" width="22" height="3" rx="1.5" />
           </>
         )}
         {type === 'r' && (
           <>
-            <Path d="M13 11 L13 16 L17 16 L17 12.5 L20.5 12.5 L20.5 16 L24.5 16 L24.5 12.5 L28 12.5 L28 16 L32 16 L32 11 L13 11 Z" />
-            <Rect x="15.5" y="16" width="14" height="17" rx="1" />
-            <Rect x="12" y="33" width="21" height="4.5" rx="2" />
+            <Path d="M12 11 L12 16 L16 16 L16 13 L19.5 13 L19.5 16 L25.5 16 L25.5 13 L29 13 L29 16 L33 16 L33 11 Z" />
+            <Path d="M14 16 L15.5 32 L29.5 32 L31 16 Z" />
+            <Path d="M14 20 L31 20" stroke={stroke} strokeWidth={1.5} fill="none" />
+            <Rect x="12" y="32" width="21" height="5" rx="1" />
+            <Rect x="10" y="37" width="25" height="3.5" rx="1.5" />
           </>
         )}
         {type === 'n' && (
           <>
-            <Path d="M15 33 L16 21 L13 18 L17 11 L22 13 C26 12 30 16 30 22 L29 33 Z" />
-            <Circle cx="19" cy="15.5" r="1.4" fill={stroke} />
-            <Rect x="12" y="33" width="21" height="4.5" rx="2" />
+            <Path d="M14 36 L15 28 C13 25 11 20 15 13 C17 9 22 9 25 11 C26 8 28 8 29 10 C32 14 33 22 32 30 L31 36 Z" />
+            <Path d="M15 21 C18 20 23 22 25 25 C23 27 21 28 16 26" fill={fill} />
+            <Circle cx="21" cy="15" r="1.5" fill={stroke} />
+            <Path d="M18 12 L19 14" stroke={stroke} strokeWidth={1.5} />
+            <Rect x="11" y="36" width="23" height="4.5" rx="2" />
           </>
         )}
         {type === 'b' && (
           <>
-            <Circle cx="22.5" cy="9.5" r="2.5" />
-            <Path d="M15.5 28 C14 20 17.5 13 22.5 13 C27.5 13 31 20 29.5 28 L27.5 33 L17.5 33 Z" />
-            <Path d="M19.5 19 L25.5 19 M22.5 16 L22.5 22" stroke={innerAccent} strokeWidth={2} />
-            <Rect x="12.5" y="33" width="20" height="4.5" rx="2" />
+            <Circle cx="22.5" cy="8.5" r="2.2" />
+            <Path d="M15 32 C13 24 16 14 22.5 12 C29 14 32 24 30 32 Z" />
+            <Path d="M21 17 L24 23 M19.5 20 L25.5 20" stroke={stroke} strokeWidth={1.8} />
+            <Path d="M18 27 C21 28.5 24 28.5 27 27" stroke={stroke} strokeWidth={1.5} fill="none" />
+            <Rect x="13.5" y="32" width="18" height="4.5" rx="1.5" />
+            <Rect x="11" y="36.5" width="23" height="3.5" rx="1.5" />
           </>
         )}
         {type === 'q' && (
           <>
-            <Circle cx="11" cy="13" r="2" />
-            <Circle cx="18.5" cy="10.5" r="2" />
-            <Circle cx="26.5" cy="10.5" r="2" />
-            <Circle cx="34" cy="13" r="2" />
-            <Path d="M12 15.5 L16 25 L19 13.5 L22.5 25 L26 13.5 L29 25 L33 15.5 L30 33 L15 33 Z" />
-            <Rect x="12" y="33" width="21" height="4.5" rx="2" />
+            <Circle cx="10" cy="13" r="2" />
+            <Circle cx="16" cy="10" r="2" />
+            <Circle cx="22.5" cy="8.5" r="2" />
+            <Circle cx="29" cy="10" r="2" />
+            <Circle cx="35" cy="13" r="2" />
+            <Path d="M10.5 15 L14 26 L18 12 L22.5 24 L27 12 L31 26 L34.5 15 L32 32 L13 32 Z" />
+            <Path d="M14 26 C19 28 26 28 31 26" stroke={stroke} strokeWidth={1.5} fill="none" />
+            <Rect x="12" y="32" width="21" height="4.5" rx="1.5" />
+            <Rect x="10" y="36.5" width="25" height="3.5" rx="1.5" />
           </>
         )}
         {type === 'k' && (
           <>
-            <Path d="M22.5 6.5 L22.5 12.5 M19.5 9.5 L25.5 9.5" stroke={stroke} strokeWidth={2.5} />
-            <Path d="M14 19 C14 13.5 31 13.5 31 19 L29 33 L16 33 Z" />
-            <Path d="M18 23 L27 23" stroke={innerAccent} strokeWidth={2} />
-            <Rect x="12" y="33" width="21" height="4.5" rx="2" />
+            <Path d="M22.5 5.5 L22.5 11.5 M19.5 8.5 L25.5 8.5" stroke={stroke} strokeWidth={2.2} />
+            <Circle cx="22.5" cy="12.5" r="2" />
+            <Path d="M14 18 C14 13.5 31 13.5 31 18 C30 24 31 28 29.5 32 L15.5 32 C14 28 15 24 14 18 Z" />
+            <Path d="M17 21 C21 23 24 23 28 21" stroke={stroke} strokeWidth={1.6} fill="none" />
+            <Path d="M16 27 C21 29 24 29 29 27" stroke={stroke} strokeWidth={1.6} fill="none" />
+            <Rect x="12" y="32" width="21" height="4.5" rx="1.5" />
+            <Rect x="10" y="36.5" width="25" height="3.5" rx="1.5" />
           </>
         )}
       </G>
@@ -458,7 +473,7 @@ export default function ChessScreen() {
                       <Text
                         style={[
                           styles.rankCoord,
-                          { color: isLightSquare ? '#334155' : '#94a3b8' },
+                          { color: isLightSquare ? '#779556' : '#ebecd0' },
                         ]}
                       >
                         {RANKS[rIdx]}
@@ -468,7 +483,7 @@ export default function ChessScreen() {
                       <Text
                         style={[
                           styles.fileCoord,
-                          { color: isLightSquare ? '#334155' : '#94a3b8' },
+                          { color: isLightSquare ? '#779556' : '#ebecd0' },
                         ]}
                       >
                         {FILES[cIdx]}
@@ -756,14 +771,19 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
   },
   boardFrame: {
-    width: SQUARE_SIZE * 8 + 8,
-    height: SQUARE_SIZE * 8 + 8,
-    borderRadius: 16,
-    padding: 4,
-    backgroundColor: '#1e2b5e',
+    width: SQUARE_SIZE * 8 + 4,
+    height: SQUARE_SIZE * 8 + 4,
+    borderRadius: 8,
+    padding: 2,
+    backgroundColor: '#779556',
     borderWidth: 2,
-    borderColor: '#3b4f99',
+    borderColor: '#5b7541',
     overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.35,
+    shadowRadius: 10,
+    elevation: 8,
   },
   boardRow: {
     flexDirection: 'row',
@@ -776,48 +796,48 @@ const styles = StyleSheet.create({
     position: 'relative',
   },
   lightSquare: {
-    backgroundColor: '#cbd5e1',
+    backgroundColor: '#ebecd0',
   },
   darkSquare: {
-    backgroundColor: '#334155',
+    backgroundColor: '#779556',
   },
   lastMoveSquare: {
-    backgroundColor: 'rgba(250, 204, 21, 0.42)',
+    backgroundColor: '#f7f769cc',
   },
   selectedSquare: {
-    backgroundColor: 'rgba(0, 229, 255, 0.48)',
+    backgroundColor: '#bbcb2b',
   },
   checkSquare: {
-    backgroundColor: 'rgba(239, 68, 68, 0.72)',
+    backgroundColor: '#eb4d4b',
   },
   rankCoord: {
     position: 'absolute',
     top: 2,
     left: 3,
-    fontSize: 9,
+    fontSize: 10,
     fontWeight: '800',
   },
   fileCoord: {
     position: 'absolute',
     bottom: 1,
     right: 3,
-    fontSize: 9,
+    fontSize: 10,
     fontWeight: '800',
   },
   legalMoveDot: {
     position: 'absolute',
-    width: SQUARE_SIZE * 0.32,
-    height: SQUARE_SIZE * 0.32,
-    borderRadius: SQUARE_SIZE * 0.16,
-    backgroundColor: 'rgba(0, 255, 135, 0.78)',
+    width: SQUARE_SIZE * 0.3,
+    height: SQUARE_SIZE * 0.3,
+    borderRadius: SQUARE_SIZE * 0.15,
+    backgroundColor: 'rgba(0, 0, 0, 0.22)',
   },
   captureRing: {
     position: 'absolute',
-    width: SQUARE_SIZE * 0.86,
-    height: SQUARE_SIZE * 0.86,
-    borderRadius: SQUARE_SIZE * 0.43,
+    width: SQUARE_SIZE * 0.88,
+    height: SQUARE_SIZE * 0.88,
+    borderRadius: SQUARE_SIZE * 0.44,
     borderWidth: 3.5,
-    borderColor: 'rgba(239, 68, 68, 0.85)',
+    borderColor: 'rgba(0, 0, 0, 0.28)',
   },
   historyBox: {
     flexDirection: 'row',

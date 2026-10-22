@@ -6,7 +6,7 @@ import {
   View,
   Dimensions,
 } from 'react-native';
-import { X } from 'lucide-react-native';
+import { Star, Check } from 'lucide-react-native';
 
 const { width } = Dimensions.get('window');
 // Responsive cell size calculation for 5x5 board with padding and gaps
@@ -68,13 +68,9 @@ export const BingoCell: React.FC<BingoCellProps> = ({
         {number}
       </Text>
 
-      {isCalled && (
-        <View style={styles.crossedOverlay}>
-          <X
-            size={CELL_SIZE * 0.68}
-            color={isInCompletedLine ? '#00ff87' : '#f43f5e'}
-            strokeWidth={3.2}
-          />
+      {isInCompletedLine && (
+        <View style={styles.starOverlay}>
+          <Star size={12} color="#064E3B" fill="#064E3B" />
         </View>
       )}
 
@@ -97,72 +93,76 @@ const styles = StyleSheet.create({
   cell: {
     width: CELL_SIZE,
     height: CELL_SIZE,
-    borderRadius: 14,
-    backgroundColor: '#151e46',
+    borderRadius: 13,
+    backgroundColor: '#FFFFFF',
     borderWidth: 1.5,
-    borderColor: '#29387a',
+    borderColor: '#E2E8F0',
     alignItems: 'center',
     justifyContent: 'center',
     position: 'relative',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.35,
+    shadowOpacity: 0.12,
     shadowRadius: 4,
     elevation: 3,
   },
   innerHighlight: {
     position: 'absolute',
-    top: 3,
-    left: 6,
-    right: 6,
+    top: 2,
+    left: 4,
+    right: 4,
     height: 3,
     borderRadius: 2,
-    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    backgroundColor: 'rgba(255, 255, 255, 0.4)',
   },
   highlightCompleted: {
-    backgroundColor: 'rgba(0, 255, 135, 0.35)',
+    backgroundColor: 'rgba(255, 255, 255, 0.6)',
   },
   highlightSwap: {
-    backgroundColor: 'rgba(255, 215, 0, 0.4)',
+    backgroundColor: 'rgba(255, 215, 0, 0.5)',
   },
   numberText: {
-    fontSize: CELL_SIZE > 54 ? 20 : 17,
+    fontSize: CELL_SIZE > 54 ? 22 : 18,
     fontWeight: '900',
-    color: '#f8fafc',
+    color: '#1E293B',
   },
   cellCalled: {
-    backgroundColor: '#1c103b',
-    borderColor: '#581c87',
+    backgroundColor: '#34D399',
+    borderColor: '#10B981',
+    shadowColor: '#10B981',
+    shadowOpacity: 0.3,
   },
   textCalled: {
-    color: '#a855f7',
-    opacity: 0.45,
+    color: '#064E3B',
+    opacity: 1,
+    fontWeight: '900',
   },
   cellCompletedLine: {
-    borderColor: '#00ff87',
-    borderWidth: 2,
-    backgroundColor: '#062e22',
-    shadowColor: '#00ff87',
-    shadowOpacity: 0.4,
+    borderColor: '#059669',
+    borderWidth: 2.5,
+    backgroundColor: '#6EE7B7',
+    shadowColor: '#10B981',
+    shadowOpacity: 0.5,
     shadowRadius: 8,
-    elevation: 5,
+    elevation: 6,
   },
   textCompletedLine: {
-    color: '#00ff87',
-    opacity: 0.9,
+    color: '#022C22',
+    opacity: 1,
     fontWeight: '900',
   },
   cellLastCalled: {
-    borderColor: '#00e5ff',
+    borderColor: '#EF4444',
     borderWidth: 2.5,
-    shadowColor: '#00e5ff',
+    backgroundColor: '#34D399',
+    shadowColor: '#EF4444',
     shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.85,
-    shadowRadius: 10,
+    shadowOpacity: 0.8,
+    shadowRadius: 8,
     elevation: 6,
   },
   textLastCalled: {
-    color: '#00e5ff',
+    color: '#064E3B',
     opacity: 1,
     fontWeight: '900',
   },
@@ -175,15 +175,10 @@ const styles = StyleSheet.create({
   textSelectedSwap: {
     color: '#ffd700',
   },
-  crossedOverlay: {
+  starOverlay: {
     position: 'absolute',
-    top: 0,
-    right: 0,
-    bottom: 0,
-    left: 0,
-    alignItems: 'center',
-    justifyContent: 'center',
-    opacity: 0.88,
+    top: 4,
+    right: 4,
   },
   lastCalledBadge: {
     position: 'absolute',
