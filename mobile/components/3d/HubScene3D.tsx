@@ -234,24 +234,25 @@ export function HubScene3D({
 
   const handleTapMesh = (intersection: THREE.Intersection) => {
     let obj: THREE.Object3D | null = intersection.object;
-    while (obj && obj.parent && !obj.name.includes('_platform')) {
-      obj = obj.parent;
-    }
-
-    if (obj) {
-      if (obj.name === 'bingo_platform') {
+    while (obj) {
+      if (obj.name && obj.name.includes('bingo')) {
         onSelectGame('bingo');
         onOpenPlayModal('bingo');
-      } else if (obj.name === 'chess_platform') {
+        return;
+      }
+      if (obj.name && obj.name.includes('chess')) {
         onSelectGame('chess');
         onOpenPlayModal('chess');
-      } else if (obj.name === 'ludo_platform') {
+        return;
+      }
+      if (obj.name && obj.name.includes('ludo')) {
         onSelectGame('ludo');
         onOpenPlayModal('ludo');
+        return;
       }
+      obj = obj.parent;
     }
   };
-
   return (
     <View style={styles.container}>
       <GameCanvas3D

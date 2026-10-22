@@ -173,7 +173,7 @@ export default function GameScreen() {
               calledNumbers={calledNumbers}
               lastCalledNumber={lastCalledNumber}
               onCellPress={handleCellPress}
-              disabled={!isMyTurn || callLoading}
+              disabled={callLoading}
               isWinner={myLines >= 5}
             />
           ) : (
@@ -182,7 +182,7 @@ export default function GameScreen() {
               calledNumbers={calledNumbers}
               lastCalledNumber={lastCalledNumber}
               onCellPress={handleCellPress}
-              disabled={!isMyTurn || callLoading}
+              disabled={callLoading}
             />
           )}
         </View>

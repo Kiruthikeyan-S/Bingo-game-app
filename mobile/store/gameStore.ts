@@ -217,7 +217,7 @@ export const useGameStore = create<GameStoreState>((set) => ({
         playerOrder: [myPlayerId, botId],
         myBoard: generateRandomBoard(),
         botBoard: generateRandomBoard(),
-        isBoardConfirmed: true,
+        isBoardConfirmed: false,
         isReady: true,
         status: 'playing',
         currentTurnPlayerId: myPlayerId,

@@ -208,13 +208,12 @@ export function BingoScene3D({
     if (disabled) return;
 
     let obj: THREE.Object3D | null = intersection.object;
-    while (obj && obj.parent && !obj.name.startsWith('bingo_tile_')) {
+    while (obj) {
+      if (obj.userData && typeof obj.userData.number === 'number') {
+        onCellPress(obj.userData.number, obj.userData.index);
+        return;
+      }
       obj = obj.parent;
-    }
-
-    if (obj && obj.userData && typeof obj.userData.number === 'number') {
-      const { number, index } = obj.userData;
-      onCellPress(number, index);
     }
   };
 

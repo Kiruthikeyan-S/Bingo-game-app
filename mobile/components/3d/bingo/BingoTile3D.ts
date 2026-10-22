@@ -56,12 +56,14 @@ export function createBingoTile3D(
   tileMesh.castShadow = true;
   tileMesh.receiveShadow = true;
   tileMesh.name = `mesh_tile_${state.index}`;
+  tileMesh.userData = { ...state };
   group.add(tileMesh);
 
   // 3. 3D Number Mesh on top face
   const numMesh = create3DNumberMesh(state.number, 0.44, numMat);
   numMesh.position.y = 0.11;
   numMesh.name = `mesh_num_${state.index}`;
+  numMesh.userData = { ...state };
   group.add(numMesh);
 
   group.position.y = targetY;

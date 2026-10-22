@@ -188,11 +188,11 @@ export function GameCanvas3D({
       ) => {
         const timeDiff = Date.now() - orbitRef.current.lastTouchTime;
         const totalDist = Math.sqrt(gesture.dx * gesture.dx + gesture.dy * gesture.dy);
-        if (timeDiff < 250 && totalDist < 8) {
+        if (timeDiff < 600 && totalDist < 25) {
           // Valid Tap
           handlePointerTap(
-            orbitRef.current.touchStartPos.x,
-            orbitRef.current.touchStartPos.y
+            (evt.nativeEvent.locationX || orbitRef.current.touchStartPos.x),
+            (evt.nativeEvent.locationY || orbitRef.current.touchStartPos.y)
           );
         }
       },

@@ -145,7 +145,7 @@ export default function HomeScreen() {
 
     if (selectedGame === 'bingo') {
       startBotBingoMatch(playerId, username, avatarUrl);
-      router.push('/board-setup');
+      router.push('/game');
     } else if (selectedGame === 'chess') {
       router.push('/games/chess');
     } else if (selectedGame === 'ludo') {
