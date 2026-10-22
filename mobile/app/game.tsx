@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -9,9 +9,7 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { LogOut, Volume2, VolumeX, Shield } from 'lucide-react-native';
-import { GameHeader } from '../components/GameHeader';
-import { PlayerCard } from '../components/PlayerCard';
+import { ChevronLeft, Grid, Sparkles } from 'lucide-react-native';
 import { BingoProgress } from '../components/BingoProgress';
 import { BingoBoard } from '../components/BingoBoard';
 import { BingoScene3D } from '../components/3d/bingo/BingoScene3D';
@@ -19,6 +17,13 @@ import { useGraphicsStore } from '../store/graphicsStore';
 import { useGame } from '../hooks/useGame';
 import { useRoom } from '../hooks/useRoom';
 import { usePlayerStore } from '../store/playerStore';
+import { EsportsPlayerCard } from '../components/gameplay/EsportsPlayerCard';
+import { EsportsBottomBar } from '../components/gameplay/EsportsBottomBar';
+import {
+  GameOptionsModal,
+  GameChatModal,
+  GameAnalyzeModal,
+} from '../components/gameplay/GameModals';
 
 export default function GameScreen() {
   const router = useRouter();
@@ -36,13 +41,40 @@ export default function GameScreen() {
 
   const { leaveRoom } = useRoom();
   const playerId = usePlayerStore((s) => s.playerId);
-  const username = usePlayerStore((s) => s.username);
+  const username = usePlayerStore((s) => s.username) || 'kiruthik1811';
   const avatarUrl = usePlayerStore((s) => s.avatarUrl);
   const soundEnabled = usePlayerStore((s) => s.soundEnabled);
   const setSoundEnabled = usePlayerStore((s) => s.setSoundEnabled);
   const fallback2D = useGraphicsStore((s) => s.fallback2D);
+  const toggleFallback2D = useGraphicsStore((s) => s.toggleFallback2D);
 
   const [callLoading, setCallLoading] = useState(false);
+  const [playerClock, setPlayerClock] = useState(600);
+  const [oppClock, setOppClock] = useState(600);
+
+  // Modals
+  const [optionsVisible, setOptionsVisible] = useState(false);
+  const [chatVisible, setChatVisible] = useState(false);
+  const [analyzeVisible, setAnalyzeVisible] = useState(false);
+
+  // Live timer tick
+  useEffect(() => {
+    if (myLines >= 5 || opponentLines >= 5) return;
+    const interval = setInterval(() => {
+      if (isMyTurn) {
+        setPlayerClock((c) => Math.max(0, c - 1));
+      } else {
+        setOppClock((c) => Math.max(0, c - 1));
+      }
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [isMyTurn, myLines, opponentLines]);
+
+  const formatClock = (seconds: number): string => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins < 10 ? '0' : ''}${mins}:${secs < 10 ? '0' : ''}${secs}`;
+  };
 
   const handleCellPress = async (number: number) => {
     if (!isMyTurn) {
@@ -84,57 +116,56 @@ export default function GameScreen() {
     );
   };
 
-  const myPlayerObj = {
-    id: playerId,
-    socketId: '',
-    username,
-    avatarUrl,
-    isReady: true,
-    isConnected: true,
-  };
+  const oppName = opponent?.username || (roomCode === 'SOLO' ? 'potawatomee (Bot)' : 'Waiting...');
+  const oppAvatar = opponent?.avatarUrl;
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <GameHeader
-        title="Bingo Battle"
-        subtitle={roomCode === 'SOLO' ? 'Single Player Mode' : `Room ${roomCode}`}
-        onBackPress={handleLeave}
-      />
+      {/* Top Header matching Tournament UI */}
+      <View style={styles.topHeader}>
+        <TouchableOpacity
+          style={styles.backButton}
+          onPress={handleLeave}
+          activeOpacity={0.7}
+        >
+          <ChevronLeft size={24} color="#f8fafc" />
+        </TouchableOpacity>
 
-      <ScrollView contentContainerStyle={styles.content}>
-        {/* Opponent & Self mini scoreboard */}
-        <View style={styles.scoreRow}>
-          <View style={styles.scoreHalf}>
-            <PlayerCard
-              player={myPlayerObj}
-              isTurn={isMyTurn}
-              linesCompleted={myLines}
-            />
-          </View>
-          <View style={styles.scoreHalf}>
-            <PlayerCard
-              player={opponent}
-              isTurn={!isMyTurn}
-              linesCompleted={opponentLines}
-              emptyPlaceholderText="Opponent disconnected"
-            />
-          </View>
-        </View>
-
-        {/* Turn Banner */}
-        <View style={[styles.turnBanner, isMyTurn ? styles.myTurnBanner : styles.oppTurnBanner]}>
-          <Shield size={16} color={isMyTurn ? '#00e5ff' : '#f59e0b'} />
-          <Text style={[styles.turnBannerText, isMyTurn ? styles.myTurnText : styles.oppTurnText]}>
-            {isMyTurn
-              ? 'YOUR TURN — Tap an uncrossed number'
-              : `${opponent?.username || 'Opponent'}'s Turn`}
+        <View style={styles.brandCenter}>
+          <Grid size={18} color="#00e5ff" style={{ marginRight: 6 }} />
+          <Text style={styles.brandTitleText}>
+            Bingo<Text style={{ color: '#00e5ff' }}>Battle</Text>
           </Text>
         </View>
 
-        {/* B-I-N-G-O Progress */}
+        <View style={styles.callBadgePill}>
+          <Text style={styles.callBadgeText}>
+            {lastCalledNumber !== null ? `CALL: #${lastCalledNumber}` : 'READY'}
+          </Text>
+        </View>
+      </View>
+
+      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+        {/* Opponent Player Card (Top) */}
+        <EsportsPlayerCard
+          avatarUrl={oppAvatar}
+          username={oppName}
+          rating={roomCode === 'SOLO' ? 302 : 1180}
+          countryFlag="🇺🇸"
+          isTurn={!isMyTurn}
+          timeText={formatClock(oppClock)}
+          isTop={true}
+          capturedContent={
+            <Text style={styles.cardSubText}>
+              Progress: {opponentLines}/5 Lines Completed
+            </Text>
+          }
+        />
+
+        {/* B-I-N-G-O Progress Banner */}
         <BingoProgress linesCompleted={myLines} />
 
-        {/* 5x5 Grid (3D GPU Render or 2D Fallback) */}
+        {/* 5x5 Grid (Real 3D GPU Render or 2D High-Performance Fallback) */}
         <View style={styles.boardWrapper}>
           {!fallback2D ? (
             <BingoScene3D
@@ -156,42 +187,70 @@ export default function GameScreen() {
           )}
         </View>
 
-        {/* Bottom Bar: Last Called Number & Status */}
-        <View style={styles.bottomBar}>
-          <View style={styles.lastCalledBox}>
-            <Text style={styles.lastCalledLabel}>LAST NUMBER</Text>
-            <Text style={styles.lastCalledVal}>
-              {lastCalledNumber !== null ? lastCalledNumber : '--'}
+        {/* Self Player Card (Bottom) */}
+        <EsportsPlayerCard
+          avatarUrl={avatarUrl}
+          username={username}
+          rating={597}
+          countryFlag="🇮🇳"
+          badgeLabel="HYPE!"
+          isTurn={isMyTurn}
+          timeText={formatClock(playerClock)}
+          isTop={false}
+          capturedContent={
+            <Text style={[styles.cardSubText, { color: '#00e5ff' }]}>
+              {myLines}/5 Lines · {calledNumbers.length}/25 Numbers Called
             </Text>
-          </View>
-
-          <View style={styles.statusBox}>
-            <Text style={styles.numbersCalledCount}>
-              {calledNumbers.length} / 25 Numbers Called
-            </Text>
-            <Text style={styles.boardProgress}>
-              Need {Math.max(0, 5 - myLines)} more lines for BINGO
-            </Text>
-          </View>
-
-          <View style={styles.actionsBox}>
-            <TouchableOpacity
-              onPress={() => setSoundEnabled(!soundEnabled)}
-              style={styles.roundBtn}
-            >
-              {soundEnabled ? (
-                <Volume2 color="#a5b4fc" size={20} />
-              ) : (
-                <VolumeX color="#64748b" size={20} />
-              )}
-            </TouchableOpacity>
-
-            <TouchableOpacity onPress={handleLeave} style={[styles.roundBtn, styles.leaveBtn]}>
-              <LogOut color="#ef4444" size={20} />
-            </TouchableOpacity>
-          </View>
-        </View>
+          }
+        />
       </ScrollView>
+
+      {/* 5-Button Esports Bottom Navigation Bar */}
+      <EsportsBottomBar
+        onOptionsPress={() => setOptionsVisible(true)}
+        onChatPress={() => setChatVisible(true)}
+        onAnalyzePress={() => setAnalyzeVisible(true)}
+        onBackPress={handleLeave}
+        onForwardPress={() => {
+          if (myLines >= 5) {
+            Alert.alert('BINGO WINNER!', 'You have completed all 5 lines!');
+          } else {
+            setAnalyzeVisible(true);
+          }
+        }}
+        canStepBack={true}
+        canStepForward={true}
+        forwardLabel={myLines >= 5 ? 'BINGO!' : 'Call'}
+        forwardHighlight={myLines >= 5}
+      />
+
+      {/* Interactive Options Modal */}
+      <GameOptionsModal
+        visible={optionsVisible}
+        onClose={() => setOptionsVisible(false)}
+        is3D={!fallback2D}
+        onToggle3D={toggleFallback2D}
+        soundEnabled={soundEnabled}
+        onToggleSound={() => setSoundEnabled(!soundEnabled)}
+        onResign={handleLeave}
+        gameType="bingo"
+      />
+
+      {/* Sportsmanlike Chat Modal */}
+      <GameChatModal
+        visible={chatVisible}
+        onClose={() => setChatVisible(false)}
+      />
+
+      {/* Tactical Bingo Analysis / Line Scanner */}
+      <GameAnalyzeModal
+        visible={analyzeVisible}
+        onClose={() => setAnalyzeVisible(false)}
+        evaluationScore={`${myLines} of 5 Lines Formed`}
+        bestMove={`Focus on uncrossed numbers near row/column junctions`}
+        tacticalTip={`Completing corners and diagonal numbers grants fastest dual-line completions.`}
+        accuracyScore={Math.min(100, Math.round((myLines / 5) * 100) + 20)}
+      />
     </SafeAreaView>
   );
 }
@@ -201,114 +260,57 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#070b1e',
   },
-  content: {
-    padding: 14,
-    alignItems: 'center',
-  },
-  scoreRow: {
-    flexDirection: 'row',
-    gap: 8,
-    width: '100%',
-    marginBottom: 8,
-  },
-  scoreHalf: {
-    flex: 1,
-  },
-  turnBanner: {
+  topHeader: {
+    height: 52,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 14,
-    width: '100%',
-    marginVertical: 4,
-    justifyContent: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: '#172238',
+  },
+  backButton: {
+    padding: 6,
+    borderRadius: 8,
+    backgroundColor: '#0e1628',
+  },
+  brandCenter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  brandTitleText: {
+    color: '#f8fafc',
+    fontSize: 17,
+    fontWeight: '900',
+    letterSpacing: 0.3,
+  },
+  callBadgePill: {
+    backgroundColor: '#151f33',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 6,
     borderWidth: 1,
+    borderColor: '#243452',
   },
-  myTurnBanner: {
-    backgroundColor: 'rgba(0, 229, 255, 0.1)',
-    borderColor: '#00e5ff',
-  },
-  oppTurnBanner: {
-    backgroundColor: 'rgba(245, 158, 11, 0.1)',
-    borderColor: '#f59e0b',
-  },
-  turnBannerText: {
-    fontSize: 13,
-    fontWeight: '800',
-    letterSpacing: 0.5,
-  },
-  myTurnText: {
+  callBadgeText: {
     color: '#00e5ff',
+    fontSize: 12,
+    fontWeight: '800',
   },
-  oppTurnText: {
-    color: '#f59e0b',
+  content: {
+    paddingHorizontal: 14,
+    paddingTop: 8,
+    paddingBottom: 16,
+    alignItems: 'center',
   },
   boardWrapper: {
-    width: '100%',
-    alignItems: 'center',
-    marginVertical: 6,
-  },
-  bottomBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#11183c',
-    borderRadius: 16,
-    padding: 12,
-    borderWidth: 1,
-    borderColor: '#1e293b',
-    width: '100%',
-    marginTop: 8,
-    gap: 12,
-  },
-  lastCalledBox: {
-    backgroundColor: '#1e293b',
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#6366f1',
-    minWidth: 70,
-  },
-  lastCalledLabel: {
-    fontSize: 8,
-    fontWeight: '800',
-    color: '#a5b4fc',
-    letterSpacing: 0.5,
-  },
-  lastCalledVal: {
-    fontSize: 22,
-    fontWeight: '900',
-    color: '#00e5ff',
-  },
-  statusBox: {
-    flex: 1,
-  },
-  numbersCalledCount: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#f8fafc',
-  },
-  boardProgress: {
-    fontSize: 11,
-    color: '#94a3b8',
-    marginTop: 2,
-  },
-  actionsBox: {
-    flexDirection: 'row',
-    gap: 6,
-  },
-  roundBtn: {
-    width: 38,
-    height: 38,
-    borderRadius: 12,
-    backgroundColor: '#1e293b',
+    marginVertical: 8,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  leaveBtn: {
-    backgroundColor: 'rgba(239, 68, 68, 0.15)',
+  cardSubText: {
+    color: '#94a3b8',
+    fontSize: 11,
+    fontWeight: '600',
   },
 });

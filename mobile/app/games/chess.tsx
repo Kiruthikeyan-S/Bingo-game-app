@@ -13,7 +13,7 @@ import {
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
-import Svg, { Path, Circle, Rect, G } from 'react-native-svg';
+import Svg, { Path, Circle, Rect, G, Defs, LinearGradient, Stop } from 'react-native-svg';
 import { Chess } from 'chess.js';
 import {
   RotateCcw,
@@ -22,8 +22,8 @@ import {
   AlertTriangle,
   Crown,
   Shield,
+  ChevronLeft,
 } from 'lucide-react-native';
-import { GameHeader } from '../../components/GameHeader';
 import { useGameStore } from '../../store/gameStore';
 import { usePlayerStore } from '../../store/playerStore';
 import { ChessEngine } from '../../engines/chess/engine';
@@ -31,6 +31,13 @@ import { ChessBot } from '../../engines/chess/bot';
 import { socketService } from '../../services/socket';
 import { useGraphicsStore } from '../../store/graphicsStore';
 import { ChessScene3D } from '../../components/3d/chess/ChessScene3D';
+import { EsportsPlayerCard } from '../../components/gameplay/EsportsPlayerCard';
+import { EsportsBottomBar } from '../../components/gameplay/EsportsBottomBar';
+import {
+  GameOptionsModal,
+  GameChatModal,
+  GameAnalyzeModal,
+} from '../../components/gameplay/GameModals';
 import {
   ChessColor,
   ChessPieceSymbol,
@@ -39,7 +46,7 @@ import {
 } from '../../../shared/types';
 
 const { width } = Dimensions.get('window');
-const BOARD_PADDING = 16;
+const BOARD_PADDING = 12;
 const BOARD_SIZE = Math.min(width - BOARD_PADDING * 2, 384);
 const SQUARE_SIZE = Math.floor(BOARD_SIZE / 8);
 
@@ -47,20 +54,41 @@ const FILES = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'];
 const RANKS = ['8', '7', '6', '5', '4', '3', '2', '1'];
 
 /**
- * Clean Play-Store-ready SVG Vector Chess Piece Renderer
+ * Metallic Shaded Vector Chess Piece Renderer matching Esports Tournament UI
  */
-const ChessPieceVector: React.FC<{
+export const ChessPieceVector: React.FC<{
   type: ChessPieceSymbol;
   color: ChessColor;
   size?: number;
-}> = ({ type, color, size = SQUARE_SIZE * 0.74 }) => {
-  const fill = color === 'w' ? '#F8FAFC' : '#0F172A';
-  const stroke = color === 'w' ? '#1E293B' : '#94A3B8';
-  const innerAccent = color === 'w' ? '#CBD5E1' : '#334155';
+}> = ({ type, color, size = SQUARE_SIZE * 0.76 }) => {
+  const isWhite = color === 'w';
+  const gradId = isWhite ? 'whiteMetallicGrad' : 'blackMetallicGrad';
+  const stroke = isWhite ? '#1e293b' : '#cbd5e1';
+  const innerAccent = isWhite ? '#94a3b8' : '#334155';
 
   return (
     <Svg width={size} height={size} viewBox="0 0 45 45">
-      <G fill={fill} stroke={stroke} strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round">
+      <Defs>
+        <LinearGradient id="whiteMetallicGrad" x1="0" y1="0" x2="0" y2="1">
+          <Stop offset="0%" stopColor="#ffffff" />
+          <Stop offset="35%" stopColor="#f1f5f9" />
+          <Stop offset="70%" stopColor="#cbd5e1" />
+          <Stop offset="100%" stopColor="#94a3b8" />
+        </LinearGradient>
+        <LinearGradient id="blackMetallicGrad" x1="0" y1="0" x2="0" y2="1">
+          <Stop offset="0%" stopColor="#475569" />
+          <Stop offset="40%" stopColor="#334155" />
+          <Stop offset="75%" stopColor="#1e293b" />
+          <Stop offset="100%" stopColor="#0f172a" />
+        </LinearGradient>
+      </Defs>
+      <G
+        fill={`url(#${gradId})`}
+        stroke={stroke}
+        strokeWidth={1.8}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      >
         {type === 'p' && (
           <>
             <Circle cx="22.5" cy="13" r="5.5" />
@@ -116,7 +144,10 @@ const ChessPieceVector: React.FC<{
 export default function ChessScreen() {
   const router = useRouter();
   const playerId = usePlayerStore((s) => s.playerId);
-  const username = usePlayerStore((s) => s.username);
+  const username = usePlayerStore((s) => s.username) || 'kiruthik1811';
+  const avatarUrl = usePlayerStore((s) => s.avatarUrl);
+  const soundEnabled = usePlayerStore((s) => s.soundEnabled);
+  const setSoundEnabled = usePlayerStore((s) => s.setSoundEnabled);
   const hapticsEnabled = usePlayerStore((s) => s.hapticsEnabled);
   const recordMatchResult = usePlayerStore((s) => s.recordMatchResult);
 
@@ -140,6 +171,17 @@ export default function ChessScreen() {
   } | null>(null);
   const [botThinking, setBotThinking] = useState(false);
   const fallback2D = useGraphicsStore((s) => s.fallback2D);
+  const toggleFallback2D = useGraphicsStore((s) => s.toggleFallback2D);
+
+  // Turn clocks (seconds)
+  const [playerClock, setPlayerClock] = useState(600);
+  const [opponentClock, setOpponentClock] = useState(600);
+
+  // Modals
+  const [optionsVisible, setOptionsVisible] = useState(false);
+  const [chatVisible, setChatVisible] = useState(false);
+  const [analyzeVisible, setAnalyzeVisible] = useState(false);
+  const [boardFlipped, setBoardFlipped] = useState(false);
 
   const activeState = isBotMode
     ? localChessState
@@ -149,24 +191,74 @@ export default function ChessScreen() {
     !isBotMode && activeState.blackPlayerId === playerId ? 'b' : 'w';
   const isMyTurn = activeState.turn === myColor;
 
-  const botRef = useRef(new ChessBot(botDifficulty));
+  // Active clock countdown
   useEffect(() => {
-    botRef.current.changeDifficulty(botDifficulty);
+    if (activeState.isCheckmate || activeState.isDraw) return;
+    const timer = setInterval(() => {
+      if (isMyTurn) {
+        setPlayerClock((prev) => Math.max(0, prev - 1));
+      } else {
+        setOpponentClock((prev) => Math.max(0, prev - 1));
+      }
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [isMyTurn, activeState.isCheckmate, activeState.isDraw]);
+
+  const formatClock = (seconds: number): string => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins < 10 ? '0' : ''}${mins}:${secs < 10 ? '0' : ''}${secs}`;
+  };
+
+  const botRef = useRef<ChessBot>(new ChessBot(botDifficulty));
+
+  useEffect(() => {
+    botRef.current.setDifficulty(botDifficulty);
   }, [botDifficulty]);
 
-  const boardMatrix = useMemo(() => {
-    try {
-      const c = new Chess(activeState.fen);
-      return c.board();
-    } catch {
-      return new Chess().board();
+  const opponentName = useMemo(() => {
+    if (isBotMode) {
+      const diffCapitalized =
+        botDifficulty.charAt(0).toUpperCase() + botDifficulty.slice(1);
+      return `potawatomee (${diffCapitalized})`;
     }
-  }, [activeState.fen]);
+    const oppId =
+      activeState.whitePlayerId === playerId
+        ? activeState.blackPlayerId
+        : activeState.whitePlayerId;
+    return players[oppId]?.username || 'Opponent';
+  }, [isBotMode, botDifficulty, activeState, playerId, players]);
+
+  // Current move notation badge for top header (e.g. "1. e3")
+  const lastMoveSan = useMemo(() => {
+    if (activeState.moveHistory.length === 0) return '1. --';
+    const last = activeState.moveHistory[activeState.moveHistory.length - 1];
+    const moveNum = Math.floor((activeState.moveHistory.length - 1) / 2) + 1;
+    const isWhite = (activeState.moveHistory.length - 1) % 2 === 0;
+    return `${moveNum}${isWhite ? '.' : '...'} ${last.san}`;
+  }, [activeState.moveHistory]);
+
+  const boardMatrix = useMemo(() => {
+    const matrix: Array<Array<{ type: string; color: string } | null>> = [];
+    const rows = boardFlipped ? [...RANKS].reverse() : RANKS;
+    const cols = boardFlipped ? [...FILES].reverse() : FILES;
+
+    for (const r of rows) {
+      const rowArr: Array<{ type: string; color: string } | null> = [];
+      for (const f of cols) {
+        const sq = `${f}${r}`;
+        const piece = activeState.board[sq];
+        rowArr.push(piece ? { type: piece.type, color: piece.color } : null);
+      }
+      matrix.push(rowArr);
+    }
+    return matrix;
+  }, [activeState.board, boardFlipped]);
 
   const legalTargets = useMemo(() => {
-    if (!selectedSquare || !isMyTurn) return [];
-    return ChessEngine.getLegalMovesFromSquare(activeState.fen, selectedSquare);
-  }, [activeState.fen, selectedSquare, isMyTurn]);
+    if (!selectedSquare) return [];
+    return ChessEngine.getLegalMovesForSquare(activeState, selectedSquare);
+  }, [activeState, selectedSquare]);
 
   const checkedKingSquare = useMemo(() => {
     if (!activeState.inCheck) return null;
@@ -174,12 +266,14 @@ export default function ChessScreen() {
       for (let c = 0; c < 8; c++) {
         const cell = boardMatrix[r][c];
         if (cell && cell.type === 'k' && cell.color === activeState.turn) {
-          return `${FILES[c]}${RANKS[r]}`;
+          const files = boardFlipped ? [...FILES].reverse() : FILES;
+          const ranks = boardFlipped ? [...RANKS].reverse() : RANKS;
+          return `${files[c]}${ranks[r]}`;
         }
       }
     }
     return null;
-  }, [activeState.inCheck, activeState.turn, boardMatrix]);
+  }, [activeState.inCheck, activeState.turn, boardMatrix, boardFlipped]);
 
   const finalizeBotMatch = (
     finishedState: ChessState,
@@ -248,193 +342,256 @@ export default function ChessScreen() {
             Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
           }
           if (res.isGameOver) {
-            finalizeBotMatch(res.state, res.winnerId || null, res.resultType || 'draw');
+            const winner = res.state.isCheckmate ? playerId : null;
+            finalizeBotMatch(res.state, winner, res.state.gameResultReason);
           }
         }
       },
       {
-        minDelayMs: 120,
-        maxDelayMs: 190,
-        isGameActive: () => !cancelled,
+        minThinkMs: 50,
+        maxThinkMs: 250,
       }
     );
 
     return () => {
       cancelled = true;
     };
-  }, [isBotMode, localChessState]);
+  }, [
+    isBotMode,
+    localChessState.turn,
+    localChessState.isCheckmate,
+    localChessState.isDraw,
+  ]);
 
-  const executeChessMove = async (
+  const executeChessMove = (
     from: string,
     to: string,
-    promotion?: 'q' | 'r' | 'b' | 'n'
+    promotionPiece?: 'q' | 'r' | 'b' | 'n'
   ) => {
-    setSelectedSquare(null);
-    setPendingPromotion(null);
-
     if (isBotMode) {
       const res = ChessEngine.applyMove(localChessState, {
         from,
         to,
-        promotion,
+        promotion: promotionPiece,
       });
-      if (!res.success || !res.state) {
-        Alert.alert('Illegal Move', res.error || 'Cannot make that move');
+
+      if (!res.success) {
+        Alert.alert('Illegal Move', res.error || 'Move not allowed');
         return;
       }
-      setLocalChessState(res.state);
+
+      setSelectedSquare(null);
+      setPendingPromotion(null);
+      setLocalChessState(res.state!);
+
       if (hapticsEnabled) {
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
       }
+
       if (res.isGameOver) {
-        finalizeBotMatch(res.state, res.winnerId || null, res.resultType || 'draw');
+        const winner = res.state!.isCheckmate ? playerId : null;
+        finalizeBotMatch(res.state!, winner, res.state!.gameResultReason);
       }
     } else {
-      const res = await socketService.chessMove({ from, to, promotion });
-      if (!res.success) {
-        Alert.alert('Invalid Move', res.error || 'Move rejected by server');
-      }
+      socketService.emit('chess_move', {
+        roomCode,
+        from,
+        to,
+        promotion: promotionPiece,
+      });
+      setSelectedSquare(null);
+      setPendingPromotion(null);
     }
   };
 
-  const handleSquarePress = (square: string, pieceColor?: ChessColor) => {
-    if (!isMyTurn || botThinking) return;
+  const handleSquarePress = (square: string, cellColor?: ChessColor) => {
+    if (!isMyTurn && !isBotMode) return;
+    if (botThinking) return;
 
-    const matchingTarget = legalTargets.find((t) => t.to === square);
-    if (selectedSquare && matchingTarget) {
-      if (matchingTarget.isPromotion) {
-        setPendingPromotion({ from: selectedSquare, to: square });
-        return;
+    if (!selectedSquare) {
+      const piece = activeState.board[square];
+      if (piece && piece.color === activeState.turn) {
+        setSelectedSquare(square);
+        if (hapticsEnabled) {
+          Haptics.selectionAsync().catch(() => {});
+        }
       }
-      executeChessMove(selectedSquare, square);
       return;
     }
 
-    if (pieceColor === myColor) {
-      setSelectedSquare(square === selectedSquare ? null : square);
-    } else {
+    if (selectedSquare === square) {
       setSelectedSquare(null);
+      return;
     }
+
+    const clickedPiece = activeState.board[square];
+    if (clickedPiece && clickedPiece.color === activeState.turn) {
+      setSelectedSquare(square);
+      if (hapticsEnabled) {
+        Haptics.selectionAsync().catch(() => {});
+      }
+      return;
+    }
+
+    const isLegal = legalTargets.some((m) => m.to === square);
+    if (!isLegal) {
+      setSelectedSquare(null);
+      return;
+    }
+
+    const movingPiece = activeState.board[selectedSquare];
+    const isPawnPromotion =
+      movingPiece?.type === 'p' &&
+      ((movingPiece.color === 'w' && square.endsWith('8')) ||
+        (movingPiece.color === 'b' && square.endsWith('1')));
+
+    if (isPawnPromotion) {
+      setPendingPromotion({ from: selectedSquare, to: square });
+      return;
+    }
+
+    executeChessMove(selectedSquare, square);
   };
 
   const handleUndo = () => {
-    if (!isBotMode || botThinking || localChessState.moveHistory.length === 0) {
-      return;
+    if (!isBotMode || localChessState.moveHistory.length === 0 || botThinking) return;
+    try {
+      const chess = new Chess(localChessState.fen);
+      chess.undo();
+      if (chess.turn() !== myColor) {
+        chess.undo();
+      }
+      const boardMap: Record<string, { type: ChessPieceSymbol; color: ChessColor }> = {};
+      const matrix = chess.board();
+      for (let r = 0; r < 8; r++) {
+        for (let c = 0; c < 8; c++) {
+          const piece = matrix[r][c];
+          if (piece) {
+            boardMap[`${FILES[c]}${RANKS[r]}`] = {
+              type: piece.type as ChessPieceSymbol,
+              color: piece.color as ChessColor,
+            };
+          }
+        }
+      }
+      setLocalChessState({
+        ...localChessState,
+        fen: chess.fen(),
+        board: boardMap,
+        turn: chess.turn() as ChessColor,
+        inCheck: chess.inCheck(),
+        isCheckmate: chess.isCheckmate(),
+        isDraw: chess.isDraw(),
+        moveHistory: localChessState.moveHistory.slice(0, -2),
+        lastMove: null,
+      });
+      setSelectedSquare(null);
+    } catch {
+      // Ignore
     }
-    const count = localChessState.turn === 'w' ? 2 : 1;
-    setLocalChessState(ChessEngine.undoMoves(localChessState, count));
-    setSelectedSquare(null);
   };
 
   const handleOfferDraw = () => {
     if (isBotMode) {
       Alert.alert(
-        'Agree to Draw?',
-        'End this match as a draw?',
-        [
-          { text: 'Keep Playing', style: 'cancel' },
-          {
-            text: 'Agree Draw',
-            onPress: () => finalizeBotMatch(localChessState, null, 'draw'),
-          },
-        ]
+        'Draw Offered',
+        'Computer evaluated position and agreed to a Draw.',
+        [{ text: 'Accept', onPress: () => finalizeBotMatch(activeState, null, 'Draw agreed') }]
       );
     } else {
-      Alert.alert('Draw', 'Use Resign or complete the game on the board.');
+      socketService.emit('chess_offer_draw', { roomCode });
     }
   };
 
   const handleResign = () => {
-    Alert.alert(
-      'Resign Match?',
-      'Are you sure you want to resign and forfeit this chess match?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Resign',
-          style: 'destructive',
-          onPress: async () => {
-            if (isBotMode) {
-              finalizeBotMatch(localChessState, botId, 'resign');
-            } else {
-              await socketService.chessResign();
-            }
-          },
+    Alert.alert('Resign Match', 'Are you sure you want to resign this match?', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Resign',
+        style: 'destructive',
+        onPress: () => {
+          if (isBotMode) {
+            finalizeBotMatch(activeState, botId, 'Resignation');
+          } else {
+            socketService.emit('chess_resign', { roomCode });
+            router.replace('/home');
+          }
         },
-      ]
-    );
+      },
+    ]);
   };
 
-  const diffCapitalized =
-    botDifficulty.charAt(0).toUpperCase() + botDifficulty.slice(1);
-  const opponentName = isBotMode
-    ? `Computer (${diffCapitalized})`
-    : Object.values(players).find((p) => p.id !== playerId)?.username || 'Opponent';
+  const displayFiles = boardFlipped ? [...FILES].reverse() : FILES;
+  const displayRanks = boardFlipped ? [...RANKS].reverse() : RANKS;
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <GameHeader
-        title="Royal Chess"
-        subtitle={
-          isBotMode
-            ? `Single Player - ${diffCapitalized}`
-            : `Online Room ${roomCode}`
-        }
-        onBackPress={handleResign}
-      />
+      {/* Top Header matching Screenshot */}
+      <View style={styles.topHeader}>
+        <TouchableOpacity
+          style={styles.backButton}
+          onPress={handleResign}
+          activeOpacity={0.7}
+        >
+          <ChevronLeft size={24} color="#f8fafc" />
+        </TouchableOpacity>
 
-      <ScrollView contentContainerStyle={styles.content}>
-        {/* Top Opponent Bar */}
-        <View style={[styles.playerBar, !isMyTurn && styles.activePlayerBar]}>
-          <View style={styles.playerInfoLeft}>
-            <View style={styles.colorBadgeBlack}>
-              <ChessPieceVector
-                type="k"
-                color={myColor === 'w' ? 'b' : 'w'}
-                size={24}
-              />
-            </View>
-            <View>
-              <Text style={styles.playerName}>{opponentName}</Text>
-              <View style={styles.capturedRow}>
-                {(myColor === 'w'
-                  ? activeState.capturedByBlack
-                  : activeState.capturedByWhite
-                ).map((p, idx) => (
-                  <ChessPieceVector
-                    key={idx}
-                    type={p}
-                    color={myColor}
-                    size={16}
-                  />
-                ))}
-              </View>
-            </View>
-          </View>
-
-          {botThinking ? (
-            <View style={styles.thinkingPill}>
-              <ActivityIndicator size="small" color="#00ff87" />
-              <Text style={styles.thinkingText}>Opponent Turn</Text>
-            </View>
-          ) : !isMyTurn ? (
-            <View style={styles.turnPill}>
-              <Text style={styles.turnPillText}>OPPONENT TURN</Text>
-            </View>
-          ) : null}
+        {/* Center Brand Title */}
+        <View style={styles.brandCenter}>
+          <Crown size={18} color="#22c55e" style={{ marginRight: 6 }} />
+          <Text style={styles.brandTitleText}>
+            Royal<Text style={{ color: '#22c55e' }}>Chess</Text>
+          </Text>
         </View>
+
+        {/* Last Move Notation Badge (e.g. 1. e3) */}
+        <View style={styles.moveBadgePill}>
+          <Text style={styles.moveBadgeText}>{lastMoveSan}</Text>
+        </View>
+      </View>
+
+      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+        {/* Opponent Card (Top) */}
+        <EsportsPlayerCard
+          pieceAvatar={
+            <ChessPieceVector
+              type="p"
+              color={myColor === 'w' ? 'b' : 'w'}
+              size={22}
+            />
+          }
+          username={opponentName}
+          rating={isBotMode ? (botDifficulty === 'hard' ? 1800 : botDifficulty === 'medium' ? 1200 : 302) : 1150}
+          countryFlag={isBotMode ? '🇺🇸' : '🇮🇳'}
+          isTurn={!isMyTurn}
+          timeText={formatClock(opponentClock)}
+          isTop={true}
+          capturedContent={
+            (myColor === 'w'
+              ? activeState.capturedByBlack
+              : activeState.capturedByWhite
+            ).map((p, idx) => (
+              <ChessPieceVector
+                key={idx}
+                type={p}
+                color={myColor}
+                size={14}
+              />
+            ))
+          }
+        />
 
         {/* Check Alert Banner */}
         {activeState.inCheck && (
           <View style={styles.checkBanner}>
-            <AlertTriangle size={16} color="#ef4444" />
+            <AlertTriangle size={15} color="#ef4444" />
             <Text style={styles.checkBannerText}>
               CHECK — Protect the {activeState.turn === 'w' ? 'White' : 'Black'} King
             </Text>
           </View>
         )}
 
-        {/* 8x8 Chessboard (Real 3D GPU Render or 2D Fallback) */}
+        {/* 8x8 Chessboard (Real 3D GPU Render or 2D High-Performance Fallback) */}
         {!fallback2D ? (
           <ChessScene3D
             boardMatrix={boardMatrix}
@@ -451,7 +608,7 @@ export default function ChessScreen() {
             {boardMatrix.map((row, rIdx) => (
               <View key={rIdx} style={styles.boardRow}>
                 {row.map((cell, cIdx) => {
-                  const squareName = `${FILES[cIdx]}${RANKS[rIdx]}`;
+                  const squareName = `${displayFiles[cIdx]}${displayRanks[rIdx]}`;
                   const isLightSquare = (rIdx + cIdx) % 2 === 0;
                   const isSelected = selectedSquare === squareName;
                   const targetMove = legalTargets.find((t) => t.to === squareName);
@@ -480,20 +637,20 @@ export default function ChessScreen() {
                         <Text
                           style={[
                             styles.rankCoord,
-                            { color: isLightSquare ? '#334155' : '#94a3b8' },
+                            { color: isLightSquare ? '#1e293b' : '#cbd5e1' },
                           ]}
                         >
-                          {RANKS[rIdx]}
+                          {displayRanks[rIdx]}
                         </Text>
                       )}
                       {rIdx === 7 && (
                         <Text
                           style={[
                             styles.fileCoord,
-                            { color: isLightSquare ? '#334155' : '#94a3b8' },
+                            { color: isLightSquare ? '#1e293b' : '#cbd5e1' },
                           ]}
                         >
-                          {FILES[cIdx]}
+                          {displayFiles[cIdx]}
                         </Text>
                       )}
 
@@ -521,97 +678,49 @@ export default function ChessScreen() {
           </View>
         )}
 
-        {/* Bottom Self Player Bar */}
-        <View style={[styles.playerBar, isMyTurn && styles.activePlayerBar]}>
-          <View style={styles.playerInfoLeft}>
-            <View style={styles.colorBadgeWhite}>
-              <ChessPieceVector type="k" color={myColor} size={24} />
-            </View>
-            <View>
-              <Text style={styles.playerName}>{username} (You)</Text>
-              <View style={styles.capturedRow}>
-                {(myColor === 'w'
-                  ? activeState.capturedByWhite
-                  : activeState.capturedByBlack
-                ).map((p, idx) => (
-                  <ChessPieceVector
-                    key={idx}
-                    type={p}
-                    color={myColor === 'w' ? 'b' : 'w'}
-                    size={16}
-                  />
-                ))}
-              </View>
-            </View>
-          </View>
-
-          {isMyTurn && (
-            <View style={[styles.turnPill, { backgroundColor: '#00e5ff' }]}>
-              <Shield size={12} color="#050816" />
-              <Text style={[styles.turnPillText, { color: '#050816' }]}>
-                YOUR TURN
-              </Text>
-            </View>
-          )}
-        </View>
-
-        {/* Scrollable Move History Strip */}
-        <View style={styles.historyBox}>
-          <Text style={styles.historyLabel}>MOVES:</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-            <View style={styles.historyMovesRow}>
-              {activeState.moveHistory.length === 0 ? (
-                <Text style={styles.emptyHistoryText}>
-                  Tap a piece to make the opening move
-                </Text>
-              ) : (
-                activeState.moveHistory.map((m, idx) => (
-                  <View key={idx} style={styles.moveChip}>
-                    <Text style={styles.moveChipText}>
-                      {idx % 2 === 0 ? `${Math.floor(idx / 2) + 1}. ` : ''}
-                      {m.san}
-                    </Text>
-                  </View>
-                ))
-              )}
-            </View>
-          </ScrollView>
-        </View>
-
-        {/* Controls Row: Undo (Solo mode), Draw, Resign */}
-        <View style={styles.controlsRow}>
-          {isBotMode && (
-            <TouchableOpacity
-              style={[
-                styles.controlBtn,
-                localChessState.moveHistory.length === 0 && { opacity: 0.4 },
-              ]}
-              onPress={handleUndo}
-              disabled={localChessState.moveHistory.length === 0 || botThinking}
-            >
-              <RotateCcw size={18} color="#00e5ff" />
-              <Text style={styles.controlBtnText}>Undo</Text>
-            </TouchableOpacity>
-          )}
-
-          <TouchableOpacity style={styles.controlBtn} onPress={handleOfferDraw}>
-            <Handshake size={18} color="#ffd700" />
-            <Text style={styles.controlBtnText}>Draw</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.controlBtn, styles.resignBtn]}
-            onPress={handleResign}
-          >
-            <Flag size={18} color="#ef4444" />
-            <Text style={[styles.controlBtnText, { color: '#ef4444' }]}>
-              Resign
-            </Text>
-          </TouchableOpacity>
-        </View>
+        {/* Self Player Card (Bottom) */}
+        <EsportsPlayerCard
+          avatarUrl={avatarUrl}
+          username={username}
+          rating={597}
+          countryFlag="🇮🇳"
+          badgeLabel="HYPE!"
+          isTurn={isMyTurn}
+          timeText={formatClock(playerClock)}
+          isTop={false}
+          capturedContent={
+            (myColor === 'w'
+              ? activeState.capturedByWhite
+              : activeState.capturedByBlack
+            ).map((p, idx) => (
+              <ChessPieceVector
+                key={idx}
+                type={p}
+                color={myColor === 'w' ? 'b' : 'w'}
+                size={14}
+              />
+            ))
+          }
+        />
       </ScrollView>
 
-      {/* Pawn Promotion Picker Modal */}
+      {/* 5-Button Esports Bottom Navigation Bar matching Screenshot */}
+      <EsportsBottomBar
+        onOptionsPress={() => setOptionsVisible(true)}
+        onChatPress={() => setChatVisible(true)}
+        onAnalyzePress={() => setAnalyzeVisible(true)}
+        onBackPress={handleUndo}
+        onForwardPress={() => {
+          if (activeState.moveHistory.length > 0) {
+            setAnalyzeVisible(true);
+          }
+        }}
+        canStepBack={isBotMode && localChessState.moveHistory.length > 0}
+        canStepForward={true}
+        forwardLabel="Forward"
+      />
+
+      {/* Pawn Promotion Modal */}
       <Modal
         visible={Boolean(pendingPromotion)}
         transparent={true}
@@ -624,42 +733,61 @@ export default function ChessScreen() {
             <Text style={styles.promoTitle}>Promote Pawn</Text>
             <Text style={styles.promoSubtitle}>Select promotion piece:</Text>
             <View style={styles.promoOptionsRow}>
-              {(['q', 'r', 'b', 'n'] as Array<'q' | 'r' | 'b' | 'n'>).map(
-                (pieceType) => (
-                  <TouchableOpacity
-                    key={pieceType}
-                    style={styles.promoOptionBtn}
-                    onPress={() => {
-                      if (pendingPromotion) {
-                        executeChessMove(
-                          pendingPromotion.from,
-                          pendingPromotion.to,
-                          pieceType
-                        );
-                      }
-                    }}
-                  >
-                    <ChessPieceVector
-                      type={pieceType}
-                      color={myColor}
-                      size={36}
-                    />
-                    <Text style={styles.promoPieceLabel}>
-                      {pieceType === 'q'
-                        ? 'Queen'
-                        : pieceType === 'r'
-                        ? 'Rook'
-                        : pieceType === 'b'
-                        ? 'Bishop'
-                        : 'Knight'}
-                    </Text>
-                  </TouchableOpacity>
-                )
-              )}
+              {(['q', 'r', 'b', 'n'] as Array<'q' | 'r' | 'b' | 'n'>).map((pieceType) => (
+                <TouchableOpacity
+                  key={pieceType}
+                  style={styles.promoOptionBtn}
+                  onPress={() => {
+                    if (pendingPromotion) {
+                      executeChessMove(pendingPromotion.from, pendingPromotion.to, pieceType);
+                    }
+                  }}
+                >
+                  <ChessPieceVector type={pieceType} color={myColor} size={36} />
+                  <Text style={styles.promoPieceLabel}>
+                    {pieceType === 'q' ? 'Queen' : pieceType === 'r' ? 'Rook' : pieceType === 'b' ? 'Bishop' : 'Knight'}
+                  </Text>
+                </TouchableOpacity>
+              ))}
             </View>
           </View>
         </View>
       </Modal>
+
+      {/* Interactive Options Modal */}
+      <GameOptionsModal
+        visible={optionsVisible}
+        onClose={() => setOptionsVisible(false)}
+        is3D={!fallback2D}
+        onToggle3D={toggleFallback2D}
+        soundEnabled={soundEnabled}
+        onToggleSound={() => setSoundEnabled(!soundEnabled)}
+        onFlipBoard={() => setBoardFlipped(!boardFlipped)}
+        onOfferDraw={handleOfferDraw}
+        onResign={handleResign}
+        gameType="chess"
+      />
+
+      {/* In-Game Sportsmanlike Chat Modal */}
+      <GameChatModal
+        visible={chatVisible}
+        onClose={() => setChatVisible(false)}
+        onSendMessage={(msg) => {
+          if (!isBotMode) {
+            socketService.emit('send_chat', { roomCode, message: msg });
+          }
+        }}
+      />
+
+      {/* Game Analysis / Hint Modal */}
+      <GameAnalyzeModal
+        visible={analyzeVisible}
+        onClose={() => setAnalyzeVisible(false)}
+        evaluationScore={activeState.inCheck ? 'Check threat detected!' : '+0.3 (Slight White edge)'}
+        bestMove="Nf3 / d4 control center"
+        tacticalTip="Keep king safety prioritized while building central pawn tension."
+        accuracyScore={94}
+      />
     </SafeAreaView>
   );
 }
@@ -667,129 +795,83 @@ export default function ChessScreen() {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#050816',
+    backgroundColor: '#070b1e',
   },
-  content: {
-    paddingHorizontal: 14,
-    paddingBottom: 24,
-    alignItems: 'center',
-    gap: 10,
-  },
-  playerBar: {
+  topHeader: {
+    height: 52,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: '#0f1636',
-    borderRadius: 16,
     paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderWidth: 1.5,
-    borderColor: '#1e2b5e',
-    width: '100%',
+    borderBottomWidth: 1,
+    borderBottomColor: '#172238',
   },
-  activePlayerBar: {
-    borderColor: '#00e5ff',
-    backgroundColor: '#131d47',
+  backButton: {
+    padding: 6,
+    borderRadius: 8,
+    backgroundColor: '#0e1628',
   },
-  playerInfoLeft: {
+  brandCenter: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
   },
-  colorBadgeBlack: {
-    width: 38,
-    height: 38,
-    borderRadius: 12,
-    backgroundColor: '#1e293b',
-    borderWidth: 1.5,
-    borderColor: '#64748b',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  colorBadgeWhite: {
-    width: 38,
-    height: 38,
-    borderRadius: 12,
-    backgroundColor: '#1e293b',
-    borderWidth: 1.5,
-    borderColor: '#00e5ff',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  playerName: {
-    fontSize: 15,
-    fontWeight: '800',
+  brandTitleText: {
     color: '#f8fafc',
-  },
-  capturedRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 2,
-    minHeight: 18,
-    marginTop: 2,
-  },
-  thinkingPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    backgroundColor: 'rgba(0, 255, 135, 0.14)',
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: 'rgba(0, 255, 135, 0.4)',
-  },
-  thinkingText: {
-    fontSize: 11,
-    fontWeight: '800',
-    color: '#00ff87',
-  },
-  turnPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: 'rgba(245, 158, 11, 0.2)',
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 10,
-  },
-  turnPillText: {
-    fontSize: 10,
+    fontSize: 17,
     fontWeight: '900',
-    color: '#f59e0b',
-    letterSpacing: 0.6,
+    letterSpacing: 0.3,
+  },
+  moveBadgePill: {
+    backgroundColor: '#151f33',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#243452',
+  },
+  moveBadgeText: {
+    color: '#94a3b8',
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  content: {
+    paddingHorizontal: BOARD_PADDING,
+    paddingTop: 6,
+    paddingBottom: 16,
+    alignItems: 'center',
   },
   checkBanner: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
     gap: 8,
-    backgroundColor: 'rgba(239, 68, 68, 0.18)',
+    backgroundColor: 'rgba(239, 68, 68, 0.15)',
+    borderWidth: 1,
     borderColor: '#ef4444',
-    borderWidth: 1.5,
-    borderRadius: 12,
-    paddingVertical: 8,
-    paddingHorizontal: 14,
-    width: '100%',
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    marginVertical: 4,
+    alignSelf: 'stretch',
+    justifyContent: 'center',
   },
   checkBannerText: {
-    color: '#fca5a5',
+    color: '#ef4444',
     fontSize: 12,
-    fontWeight: '900',
-    letterSpacing: 0.5,
+    fontWeight: '800',
   },
   boardFrame: {
-    width: SQUARE_SIZE * 8 + 8,
-    height: SQUARE_SIZE * 8 + 8,
-    borderRadius: 16,
-    padding: 4,
-    backgroundColor: '#1e2b5e',
-    borderWidth: 2,
-    borderColor: '#3b4f99',
+    width: BOARD_SIZE,
+    height: BOARD_SIZE,
+    borderRadius: 8,
     overflow: 'hidden',
+    borderWidth: 2,
+    borderColor: '#1e293b',
+    backgroundColor: '#090e1a',
+    marginVertical: 4,
   },
   boardRow: {
     flexDirection: 'row',
+    height: SQUARE_SIZE,
   },
   square: {
     width: SQUARE_SIZE,
@@ -799,161 +881,100 @@ const styles = StyleSheet.create({
     position: 'relative',
   },
   lightSquare: {
-    backgroundColor: '#cbd5e1',
+    backgroundColor: '#556477',
   },
   darkSquare: {
-    backgroundColor: '#334155',
+    backgroundColor: '#2b3648',
   },
   lastMoveSquare: {
-    backgroundColor: 'rgba(250, 204, 21, 0.42)',
+    backgroundColor: 'rgba(56, 189, 248, 0.35)',
+    borderWidth: 1.5,
+    borderColor: '#38bdf8',
   },
   selectedSquare: {
-    backgroundColor: 'rgba(0, 229, 255, 0.48)',
+    backgroundColor: 'rgba(234, 179, 8, 0.45)',
+    borderWidth: 2,
+    borderColor: '#eab308',
   },
   checkSquare: {
-    backgroundColor: 'rgba(239, 68, 68, 0.72)',
+    backgroundColor: 'rgba(239, 68, 68, 0.6)',
   },
   rankCoord: {
     position: 'absolute',
     top: 2,
     left: 3,
-    fontSize: 9,
+    fontSize: 10,
     fontWeight: '800',
   },
   fileCoord: {
     position: 'absolute',
-    bottom: 1,
+    bottom: 2,
     right: 3,
-    fontSize: 9,
+    fontSize: 10,
     fontWeight: '800',
   },
   legalMoveDot: {
     position: 'absolute',
-    width: SQUARE_SIZE * 0.32,
-    height: SQUARE_SIZE * 0.32,
-    borderRadius: SQUARE_SIZE * 0.16,
-    backgroundColor: 'rgba(0, 255, 135, 0.78)',
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: 'rgba(34, 211, 238, 0.85)',
+    borderWidth: 1.5,
+    borderColor: '#ffffff',
   },
   captureRing: {
     position: 'absolute',
-    width: SQUARE_SIZE * 0.86,
-    height: SQUARE_SIZE * 0.86,
-    borderRadius: SQUARE_SIZE * 0.43,
-    borderWidth: 3.5,
-    borderColor: 'rgba(239, 68, 68, 0.85)',
-  },
-  historyBox: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#0f1636',
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderWidth: 1,
-    borderColor: '#1e2b5e',
-    width: '100%',
-    gap: 8,
-  },
-  historyLabel: {
-    fontSize: 10,
-    fontWeight: '900',
-    color: '#00e5ff',
-    letterSpacing: 0.8,
-  },
-  historyMovesRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  emptyHistoryText: {
-    fontSize: 11,
-    color: '#64748b',
-  },
-  moveChip: {
-    backgroundColor: '#17214b',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 6,
-  },
-  moveChipText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#e2e8f0',
-  },
-  controlsRow: {
-    flexDirection: 'row',
-    gap: 10,
-    width: '100%',
-  },
-  controlBtn: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    backgroundColor: '#0f1636',
-    paddingVertical: 12,
-    borderRadius: 14,
-    borderWidth: 1.5,
-    borderColor: '#1e2b5e',
-  },
-  resignBtn: {
-    borderColor: 'rgba(239, 68, 68, 0.4)',
-    backgroundColor: 'rgba(239, 68, 68, 0.1)',
-  },
-  controlBtnText: {
-    fontSize: 13,
-    fontWeight: '800',
-    color: '#f8fafc',
+    width: SQUARE_SIZE - 4,
+    height: SQUARE_SIZE - 4,
+    borderRadius: (SQUARE_SIZE - 4) / 2,
+    borderWidth: 3,
+    borderColor: '#ef4444',
+    backgroundColor: 'rgba(239, 68, 68, 0.2)',
   },
   promoOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(3, 6, 18, 0.85)',
-    justifyContent: 'center',
+    backgroundColor: 'rgba(5, 8, 22, 0.8)',
     alignItems: 'center',
-    padding: 24,
+    justifyContent: 'center',
   },
   promoCard: {
-    backgroundColor: '#0f1636',
-    borderRadius: 24,
-    padding: 24,
-    borderWidth: 2,
-    borderColor: '#00e5ff',
+    backgroundColor: '#0f172a',
+    borderRadius: 16,
+    padding: 20,
     alignItems: 'center',
-    width: '100%',
-    maxWidth: 340,
+    borderWidth: 1,
+    borderColor: '#334155',
+    width: 320,
   },
   promoTitle: {
-    fontSize: 20,
-    fontWeight: '900',
     color: '#f8fafc',
+    fontSize: 18,
+    fontWeight: '800',
     marginTop: 8,
   },
   promoSubtitle: {
-    fontSize: 12,
     color: '#94a3b8',
+    fontSize: 12,
     marginTop: 4,
     marginBottom: 16,
   },
   promoOptionsRow: {
     flexDirection: 'row',
-    gap: 10,
+    gap: 12,
   },
   promoOptionBtn: {
     alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#17214b',
-    paddingVertical: 12,
-    paddingHorizontal: 14,
-    borderRadius: 16,
-    borderWidth: 1.5,
-    borderColor: '#3b4f99',
-    minWidth: 66,
+    padding: 10,
+    backgroundColor: '#1e293b',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#334155',
+    minWidth: 62,
   },
   promoPieceLabel: {
+    color: '#f8fafc',
     fontSize: 10,
-    fontWeight: '800',
-    color: '#cbd5e1',
-    marginTop: 6,
+    fontWeight: '700',
+    marginTop: 4,
   },
 });
