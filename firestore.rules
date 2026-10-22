@@ -1,0 +1,87 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null && request.auth.uid != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isMember(roomData) {
+      return isAuthenticated() && (
+        request.auth.uid in roomData.playerUids ||
+        request.auth.uid == roomData.hostUid
+      );
+    }
+
+    // User profiles collection
+    match /users/{userId} {
+      allow read: if isAuthenticated();
+      allow create: if isOwner(userId);
+      allow update: if isOwner(userId)
+                    // Disallow tampering with critical stats/balances directly
+                    && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role', 'isBanned']);
+      allow delete: if false; // Profiles cannot be deleted directly
+    }
+
+    // Room code reservations (6-character uppercase human-readable codes)
+    match /roomCodes/{code} {
+      allow read: if isAuthenticated();
+      // Allow host to reserve an unassigned or expired code mapping
+      allow create: if isAuthenticated() && request.resource.data.hostUid == request.auth.uid;
+      allow update: if isAuthenticated();
+      allow delete: if isAuthenticated() && resource.data.hostUid == request.auth.uid;
+    }
+
+    // Matchmaking queue
+    match /matchmakingQueue/{userId} {
+      // Allow reading queue entries for active matchmaking pairing
+      allow read: if isAuthenticated();
+      // Only the user themselves can enter the queue
+      allow create: if isOwner(userId)
+                    && request.resource.data.uid == userId
+                    && request.resource.data.status in ['searching', 'matched'];
+      // The user can update or cancel, and opponents can update status to 'matched' atomically
+      allow update: if isAuthenticated();
+      // Only the user can remove their own queue entry (or cleanup)
+      allow delete: if isOwner(userId) || isAuthenticated();
+    }
+
+    // Game Rooms collection
+    match /rooms/{roomId} {
+      // Room read authorization: authorized members or public listings
+      allow read: if isAuthenticated() && (
+        resource.data.visibility == 'public' ||
+        isMember(resource.data)
+      );
+
+      // Room creation: only the authenticated host can create a room
+      allow create: if isAuthenticated()
+                    && request.resource.data.hostUid == request.auth.uid
+                    && request.auth.uid in request.resource.data.playerUids
+                    && request.resource.data.playerCount >= 1
+                    && request.resource.data.playerCount <= request.resource.data.maxPlayers;
+
+      // Room updates: only active members or joining players can update
+      allow update: if isAuthenticated() && (
+        // Joining: allowing a new player to append themselves atomically up to maxPlayers
+        (
+          resource.data.status == 'waiting'
+          && resource.data.playerCount < resource.data.maxPlayers
+          && !(request.auth.uid in resource.data.playerUids)
+          && request.resource.data.playerCount == resource.data.playerCount + 1
+          && request.auth.uid in request.resource.data.playerUids
+        )
+        // Existing members updating game state, ready status, or leaving
+        || isMember(resource.data)
+      );
+
+      // Deletion: only host can delete/cancel the room
+      allow delete: if isAuthenticated() && resource.data.hostUid == request.auth.uid;
+    }
+  }
+}

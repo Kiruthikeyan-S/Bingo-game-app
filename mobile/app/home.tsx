@@ -151,6 +151,12 @@ export default function HomeScreen() {
     router.push('/create-room');
   };
 
+  const handlePublicMatchmaking = () => {
+    setModeModalVisible(false);
+    setGameMode('online');
+    router.push('/matchmaking');
+  };
+
   const handleJoinOnlineRoom = () => {
     setModeModalVisible(false);
     setGameMode('online');
@@ -540,6 +546,14 @@ export default function HomeScreen() {
                     </Text>
                   </View>
                 </View>
+
+                <GameButton
+                  title="Public Matchmaking (Find Rival)"
+                  variant="outline"
+                  onPress={handlePublicMatchmaking}
+                  icon={<Swords size={18} color="#00ff87" />}
+                  style={{ marginBottom: 10 }}
+                />
 
                 <GameButton
                   title="Create Private Room"

@@ -2,6 +2,7 @@ import { useEffect, useCallback, useRef } from 'react';
 import * as Haptics from 'expo-haptics';
 import { useRouter } from 'expo-router';
 import { socketService } from '../services/socket';
+import { multiplayerService } from '../services/multiplayerService';
 import { useGameStore } from '../store/gameStore';
 import { usePlayerStore } from '../store/playerStore';
 import { BoardArray, GameType, PlayerScoreSummary } from '../../shared/types';
@@ -118,60 +119,47 @@ export function useGame() {
         mode: 'online',
         opponentName: opp?.username || 'Online Rival',
         result: isDraw ? 'draw' : isWin ? 'win' : 'loss',
-        resultReason: String(data.resultType || 'finished'),
-        movesCount:
-          store.selectedGame === 'bingo'
-            ? store.calledNumbers.length
-            : store.chessState?.moveHistory.length || 20,
+        resultReason: isDraw ? 'Draw' : isWin ? 'Victory' : 'Defeat',
+        movesCount: store.calledNumbers.length,
       });
 
       if (hapticsEnabled) {
         if (isWin) {
           Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
         } else {
-          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error).catch(() => {});
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning).catch(() => {});
         }
       }
+
       router.push('/results');
     };
 
-    const handleRematchRequest = (data: { playerId: string }) => {
-      useGameStore.getState().addRematchRequest(data.playerId);
-    };
-
-    const handleRematchAccepted = (data: { gameType?: GameType }) => {
-      navigateToGameScreen(data.gameType || useGameStore.getState().selectedGame);
-    };
-
-    socket.on('game:start', handleGameStart);
-    socket.on('game:numberCalled', handleNumberCalled);
-    socket.on('game:turnChanged', handleTurnChanged);
-    socket.on('chess:stateUpdated', handleChessStateUpdated);
-    socket.on('ludo:stateUpdated', handleLudoStateUpdated);
-    socket.on('game:finished', handleGameFinished);
-    socket.on('game:rematchRequest', handleRematchRequest);
-    socket.on('game:rematchAccepted', handleRematchAccepted);
+    (socket as any).on('game:start', handleGameStart);
+    (socket as any).on('game:numberCalled', handleNumberCalled);
+    (socket as any).on('game:turnChanged', handleTurnChanged);
+    (socket as any).on('chess:stateUpdate', handleChessStateUpdated);
+    (socket as any).on('ludo:stateUpdate', handleLudoStateUpdated);
+    (socket as any).on('game:finished', handleGameFinished);
 
     return () => {
-      socket.off('game:start', handleGameStart);
-      socket.off('game:numberCalled', handleNumberCalled);
-      socket.off('game:turnChanged', handleTurnChanged);
-      socket.off('chess:stateUpdated', handleChessStateUpdated);
-      socket.off('ludo:stateUpdated', handleLudoStateUpdated);
-      socket.off('game:finished', handleGameFinished);
-      socket.off('game:rematchRequest', handleRematchRequest);
-      socket.off('game:rematchAccepted', handleRematchAccepted);
+      (socket as any).off('game:start', handleGameStart);
+      (socket as any).off('game:numberCalled', handleNumberCalled);
+      (socket as any).off('game:turnChanged', handleTurnChanged);
+      (socket as any).off('chess:stateUpdate', handleChessStateUpdated);
+      (socket as any).off('ludo:stateUpdate', handleLudoStateUpdated);
+      (socket as any).off('game:finished', handleGameFinished);
     };
-  }, [gameMode, playerId, hapticsEnabled, router, navigateToGameScreen]);
+  }, [gameMode, playerId, hapticsEnabled, navigateToGameScreen, router]);
 
-  // Helper to apply a Bingo number call in offline Bot mode
+  // Local helper for Offline Bot Bingo turns
   const applyLocalBotModeNumber = useCallback(
     (num: number, callerId: string) => {
       const store = useGameStore.getState();
-      if (store.status !== 'playing') return;
+      if (store.calledNumbers.includes(num)) return;
 
       const nextCalled = [...store.calledNumbers, num];
       const botId = 'bot_bingo_ai';
+      const botPlayer = store.players[botId];
 
       const outcome = BingoEngine.evaluateMatchOutcome(
         playerId,
@@ -189,11 +177,10 @@ export function useGame() {
       store.numberCalled(num, callerId, linesRecord);
 
       if (hapticsEnabled) {
-        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
       }
 
-      if (outcome.isGameOver && outcome.resultType) {
-        const botPlayer = store.players[botId];
+      if (outcome.isGameOver) {
         const summaryList: PlayerScoreSummary[] = [
           {
             playerId,
@@ -215,7 +202,7 @@ export function useGame() {
 
         store.setGameFinished(
           outcome.winnerId,
-          outcome.resultType,
+          outcome.resultType || 'win',
           linesRecord,
           summaryList
         );
@@ -258,48 +245,52 @@ export function useGame() {
     }
 
     let cancelled = false;
-    botInstanceRef.current.executeBotMove(
-      {
-        botBoard,
-        calledNumbers,
-      },
-      (chosenNum) => {
-        if (!cancelled) {
-          applyLocalBotModeNumber(chosenNum, 'bot_bingo_ai');
-        }
-      },
-      {
-        minDelayMs: 140,
-        maxDelayMs: 220,
-        isGameActive: () =>
-          !cancelled &&
-          useGameStore.getState().status === 'playing' &&
-          useGameStore.getState().currentTurnPlayerId === 'bot_bingo_ai',
+    const botDelay = Math.floor(Math.random() * 80) + 140;
+
+    const botTimer = setTimeout(() => {
+      if (cancelled) return;
+      const store = useGameStore.getState();
+      if (store.status !== 'playing' || store.currentTurnPlayerId !== 'bot_bingo_ai') {
+        return;
       }
-    );
+
+      const botBoardArray = store.botBoard;
+      const called = store.calledNumbers;
+
+      const chosenNum = botInstanceRef.current.selectBotMove({
+        botBoard: botBoardArray,
+        calledNumbers: called,
+      });
+
+      if (chosenNum) {
+        applyLocalBotModeNumber(chosenNum, 'bot_bingo_ai');
+      }
+    }, botDelay);
 
     return () => {
       cancelled = true;
+      clearTimeout(botTimer);
     };
-  }, [
-    gameMode,
-    selectedGame,
-    status,
-    currentTurnPlayerId,
-    botBoard,
-    calledNumbers,
-    applyLocalBotModeNumber,
-  ]);
+  }, [gameMode, selectedGame, status, currentTurnPlayerId, applyLocalBotModeNumber]);
 
   const submitBoard = useCallback(
     async (board: BoardArray) => {
+      useGameStore.getState().setMyBoard(board);
       if (gameMode === 'bot') {
-        useGameStore.getState().setMyBoard(board);
+        useGameStore.getState().setBoardConfirmed(true);
         return { success: true };
+      }
+      const store = useGameStore.getState();
+      if (store.roomCode) {
+        const res = await multiplayerService.submitBingoBoard(store.roomCode, playerId, board);
+        if (res.success) {
+          useGameStore.getState().setBoardConfirmed(true);
+        }
+        return res;
       }
       return await socketService.submitBoard(board);
     },
-    [gameMode]
+    [gameMode, playerId]
   );
 
   const callNumber = useCallback(
@@ -312,6 +303,10 @@ export function useGame() {
         return { success: true };
       }
 
+      const store = useGameStore.getState();
+      if (store.roomCode) {
+        return await multiplayerService.callBingoNumber(store.roomCode, playerId, num);
+      }
       return await socketService.callNumber(num);
     },
     [isMyTurn, calledNumbers, gameMode, applyLocalBotModeNumber, playerId]
@@ -329,6 +324,10 @@ export function useGame() {
         router.replace('/games/ludo');
       }
       return { success: true };
+    }
+    const store = useGameStore.getState();
+    if (store.roomCode) {
+      return await multiplayerService.rematch(store.roomCode, playerId);
     }
     return await socketService.requestRematch();
   }, [gameMode, playerId, username, avatarUrl, router]);

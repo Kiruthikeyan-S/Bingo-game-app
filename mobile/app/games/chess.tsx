@@ -29,6 +29,7 @@ import { usePlayerStore } from '../../store/playerStore';
 import { ChessEngine } from '../../engines/chess/engine';
 import { ChessBot } from '../../engines/chess/bot';
 import { socketService } from '../../services/socket';
+import { multiplayerService } from '../../services/multiplayerService';
 import {
   ChessColor,
   ChessPieceSymbol,
@@ -341,7 +342,12 @@ export default function ChessScreen() {
             if (isBotMode) {
               finalizeBotMatch(localChessState, botId, 'resign');
             } else {
-              await socketService.chessResign();
+              const store = useGameStore.getState();
+              if (store.roomCode) {
+                await multiplayerService.resignChess(store.roomCode, playerId);
+              } else {
+                await socketService.chessResign();
+              }
             }
           },
         },

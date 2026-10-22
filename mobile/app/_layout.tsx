@@ -28,6 +28,7 @@ export default function RootLayout() {
         <Stack.Screen name="history" />
         <Stack.Screen name="create-room" />
         <Stack.Screen name="join-room" />
+        <Stack.Screen name="matchmaking" />
         <Stack.Screen name="board-setup" />
         <Stack.Screen name="lobby" />
         <Stack.Screen name="game" />

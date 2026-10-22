@@ -25,6 +25,7 @@ import {
 } from '../../engines/ludo/rules';
 import { LudoBot } from '../../engines/ludo/bot';
 import { socketService } from '../../services/socket';
+import { multiplayerService } from '../../services/multiplayerService';
 import {
   LudoColor,
   LudoState,
@@ -264,9 +265,17 @@ export default function LudoScreen() {
       const rollOut = LudoEngine.applyDiceRoll(localLudoState);
       setLocalLudoState(rollOut.state);
     } else {
-      const res = await socketService.ludoRollDice();
-      if (!res.success) {
-        Alert.alert('Roll Error', res.error || 'Could not roll dice');
+      const store = useGameStore.getState();
+      if (store.roomCode) {
+        const res = await multiplayerService.rollLudoDice(store.roomCode, playerId);
+        if (!res.success) {
+          Alert.alert('Roll Error', res.error || 'Could not roll dice');
+        }
+      } else {
+        const res = await socketService.ludoRollDice();
+        if (!res.success) {
+          Alert.alert('Roll Error', res.error || 'Could not roll dice');
+        }
       }
     }
   };
@@ -290,9 +299,17 @@ export default function LudoScreen() {
         }
       }
     } else {
-      const res = await socketService.ludoMoveToken(token.id);
-      if (!res.success) {
-        Alert.alert('Move Error', res.error || 'Illegal token move');
+      const store = useGameStore.getState();
+      if (store.roomCode) {
+        const res = await multiplayerService.moveLudoToken(store.roomCode, playerId, token.id);
+        if (!res.success) {
+          Alert.alert('Move Error', res.error || 'Illegal token move');
+        }
+      } else {
+        const res = await socketService.ludoMoveToken(token.id);
+        if (!res.success) {
+          Alert.alert('Move Error', res.error || 'Illegal token move');
+        }
       }
     }
   };
