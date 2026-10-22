@@ -12,10 +12,4 @@ config.resolver.nodeModulesPaths = [
   path.resolve(workspaceRoot, 'node_modules'),
 ];
 
-// Support 3D asset formats
-const defaultAssetExts = config.resolver.assetExts || [];
-config.resolver.assetExts = Array.from(
-  new Set([...defaultAssetExts, 'glb', 'gltf', 'obj', 'mtl', 'bin'])
-);
-
 module.exports = config;

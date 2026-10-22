@@ -7,7 +7,6 @@ export interface PlayerProfile {
   playerId?: string;
   username: string;
   avatarUrl: string;
-  email?: string;
 }
 
 export const AVATAR_OPTIONS = [
@@ -57,7 +56,6 @@ interface PlayerStoreState {
   playerId: string;
   username: string;
   avatarUrl: string;
-  email: string;
   coins: number;
   theme: 'dark' | 'light';
   soundEnabled: boolean;
@@ -74,11 +72,6 @@ interface PlayerStoreState {
   friends: FriendItem[];
 
   setProfile: (profile: Partial<PlayerProfile>) => void;
-  loginWithEmail: (email: string, password?: string) => Promise<{ success: boolean; error?: string }>;
-  signUpWithEmail: (email: string, username: string, password?: string) => Promise<{ success: boolean; error?: string }>;
-  loginWithGoogle: () => Promise<{ success: boolean; error?: string }>;
-  sendPasswordReset: (email: string) => Promise<{ success: boolean; error?: string }>;
-  loginAsGuest: () => void;
   setSoundEnabled: (enabled: boolean) => void;
   setHapticsEnabled: (enabled: boolean) => void;
   setTheme: (theme: 'dark' | 'light') => void;
@@ -103,7 +96,6 @@ export const usePlayerStore = create<PlayerStoreState>((set, get) => ({
   playerId: `p_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
   username: 'LuckyPlayer',
   avatarUrl: AVATAR_OPTIONS[0],
-  email: '',
   coins: 1250,
   theme: 'dark',
   soundEnabled: true,
@@ -126,7 +118,6 @@ export const usePlayerStore = create<PlayerStoreState>((set, get) => ({
         playerId: profile.playerId || profile.id || state.playerId,
         username: profile.username ?? state.username,
         avatarUrl: profile.avatarUrl ?? state.avatarUrl,
-        email: profile.email ?? state.email,
         isRegistered: true,
       };
       AsyncStorage.setItem(
@@ -135,7 +126,6 @@ export const usePlayerStore = create<PlayerStoreState>((set, get) => ({
           playerId: next.playerId,
           username: next.username,
           avatarUrl: next.avatarUrl,
-          email: next.email,
           coins: next.coins,
           theme: next.theme,
           stats: next.stats,
@@ -146,67 +136,6 @@ export const usePlayerStore = create<PlayerStoreState>((set, get) => ({
       ).catch(() => {});
       return next;
     }),
-
-  loginWithEmail: async (email, password) => {
-    try {
-      const trimmed = email.trim().toLowerCase();
-      const extractedUsername = trimmed.split('@')[0] || 'CyberPlayer';
-      get().setProfile({
-        email: trimmed,
-        username: extractedUsername,
-      });
-      return { success: true };
-    } catch (e: any) {
-      return { success: false, error: e?.message || 'Login failed' };
-    }
-  },
-
-  signUpWithEmail: async (email, username, password) => {
-    try {
-      const trimmedEmail = email.trim().toLowerCase();
-      const trimmedUsername = username.trim() || 'GamerOne';
-      get().setProfile({
-        email: trimmedEmail,
-        username: trimmedUsername,
-      });
-      return { success: true };
-    } catch (e: any) {
-      return { success: false, error: e?.message || 'Registration failed' };
-    }
-  },
-
-  loginWithGoogle: async () => {
-    try {
-      // Fast, zero-friction simulated Google SSO provider linking
-      const googleUsername = `NexusWarrior_${Math.floor(1000 + Math.random() * 9000)}`;
-      const googleEmail = `${googleUsername.toLowerCase()}@gmail.com`;
-      get().setProfile({
-        email: googleEmail,
-        username: googleUsername,
-        avatarUrl: AVATAR_OPTIONS[1],
-      });
-      return { success: true };
-    } catch (e: any) {
-      return { success: false, error: e?.message || 'Google Sign-in failed' };
-    }
-  },
-
-  sendPasswordReset: async (email) => {
-    try {
-      // Dispatch transmission
-      return { success: true };
-    } catch (e: any) {
-      return { success: false, error: e?.message || 'Failed to dispatch reset link' };
-    }
-  },
-
-  loginAsGuest: () => {
-    const guestId = `guest_${Math.floor(1000 + Math.random() * 9000)}`;
-    get().setProfile({
-      username: `Guest_${guestId.slice(-4)}`,
-      avatarUrl: AVATAR_OPTIONS[0],
-    });
-  },
 
   setSoundEnabled: (enabled) => set({ soundEnabled: enabled }),
   setHapticsEnabled: (enabled) => set({ hapticsEnabled: enabled }),

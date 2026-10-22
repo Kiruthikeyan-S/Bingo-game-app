@@ -5,8 +5,6 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Shuffle, RotateCcw, Lock, Check, Clock, Play } from 'lucide-react-native';
 import { GameHeader } from '../components/GameHeader';
 import { BingoBoard } from '../components/BingoBoard';
-import { BingoScene3D } from '../components/3d/bingo/BingoScene3D';
-import { useGraphicsStore } from '../store/graphicsStore';
 import { GameButton } from '../components/GameButton';
 import { useGameStore } from '../store/gameStore';
 import { usePlayerStore } from '../store/playerStore';
@@ -27,7 +25,6 @@ export default function BoardSetupScreen() {
   const { players, toggleReady } = useRoom();
   const { submitBoard } = useGame();
   const playerId = usePlayerStore((s) => s.playerId);
-  const fallback2D = useGraphicsStore((s) => s.fallback2D);
 
   const [selectedCellIndex, setSelectedCellIndex] = useState<number | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -125,23 +122,14 @@ export default function BoardSetupScreen() {
             : 'Shuffle or tap any two cells to customize your grid.'}
         </Text>
 
-        {/* 5x5 Grid (3D GPU Render or 2D Fallback) */}
+        {/* 5x5 Grid */}
         <View style={styles.boardWrapper}>
-          {!fallback2D ? (
-            <BingoScene3D
-              board={myBoard}
-              selectedSwapIndex={selectedCellIndex}
-              onCellPress={handleCellPress}
-              disabled={isBoardConfirmed}
-            />
-          ) : (
-            <BingoBoard
-              board={myBoard}
-              selectedSwapIndex={selectedCellIndex}
-              onCellPress={handleCellPress}
-              disabled={isBoardConfirmed}
-            />
-          )}
+          <BingoBoard
+            board={myBoard}
+            selectedSwapIndex={selectedCellIndex}
+            onCellPress={handleCellPress}
+            disabled={isBoardConfirmed}
+          />
         </View>
 
         {/* Controls */}

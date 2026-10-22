@@ -28,13 +28,9 @@ import {
   Coins,
   Swords,
   Shield,
-  Box,
 } from 'lucide-react-native';
 import { usePlayerStore } from '../store/playerStore';
 import { useGameStore } from '../store/gameStore';
-import { useGraphicsStore } from '../store/graphicsStore';
-import { HubScene3D } from '../components/3d/HubScene3D';
-import { GraphicsSettingsModal } from '../components/3d/GraphicsSettingsModal';
 import { useSocket } from '../hooks/useSocket';
 import { GameButton } from '../components/GameButton';
 import { BottomNavBar } from '../components/BottomNavBar';
@@ -117,14 +113,10 @@ export default function HomeScreen() {
   const startBotBingoMatch = useGameStore((s) => s.startBotBingoMatch);
 
   const [modeModalVisible, setModeModalVisible] = useState(false);
-  const [showGraphicsModal, setShowGraphicsModal] = useState(false);
-  const fallback2D = useGraphicsStore((s) => s.fallback2D);
-  const loadSavedGraphics = useGraphicsStore((s) => s.loadSavedSettings);
   const fadeAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     hydrateFromStorage();
-    loadSavedGraphics();
     Animated.timing(fadeAnim, {
       toValue: 1,
       duration: 380,
@@ -145,7 +137,7 @@ export default function HomeScreen() {
 
     if (selectedGame === 'bingo') {
       startBotBingoMatch(playerId, username, avatarUrl);
-      router.push('/game');
+      router.push('/board-setup');
     } else if (selectedGame === 'chess') {
       router.push('/games/chess');
     } else if (selectedGame === 'ludo') {
@@ -234,14 +226,6 @@ export default function HomeScreen() {
             <TouchableOpacity
               activeOpacity={0.8}
               style={[styles.iconCircle, isLight && styles.cardLight]}
-              onPress={() => setShowGraphicsModal(true)}
-            >
-              <Box size={18} color={isLight ? '#334155' : '#00e5ff'} />
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              activeOpacity={0.8}
-              style={[styles.iconCircle, isLight && styles.cardLight]}
               onPress={() => router.push('/settings')}
             >
               <SettingsIcon size={18} color={isLight ? '#334155' : '#cbd5e1'} />
@@ -313,15 +297,6 @@ export default function HomeScreen() {
             <Text style={styles.quickJoinText}>Join with Code</Text>
           </TouchableOpacity>
         </View>
-
-        {/* Interactive 3D Game Hub Preview */}
-        {!fallback2D && (
-          <HubScene3D
-            selectedGame={selectedGame}
-            onSelectGame={setSelectedGame}
-            onOpenPlayModal={handleSelectGameCard}
-          />
-        )}
 
         {/* Three Game Cards: 1. Bingo, 2. Chess, 3. Ludo */}
         <Animated.View style={{ opacity: fadeAnim, gap: 14 }}>
@@ -594,11 +569,6 @@ export default function HomeScreen() {
           </View>
         </View>
       </Modal>
-
-      <GraphicsSettingsModal
-        visible={showGraphicsModal}
-        onClose={() => setShowGraphicsModal(false)}
-      />
     </SafeAreaView>
   );
 }
