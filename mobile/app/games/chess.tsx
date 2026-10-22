@@ -238,42 +238,39 @@ export default function ChessScreen() {
     return `${moveNum}${isWhite ? '.' : '...'} ${last.san}`;
   }, [activeState.moveHistory]);
 
-  const boardMatrix = useMemo(() => {
-    const matrix: Array<Array<{ type: string; color: string } | null>> = [];
-    const rows = boardFlipped ? [...RANKS].reverse() : RANKS;
-    const cols = boardFlipped ? [...FILES].reverse() : FILES;
-
-    for (const r of rows) {
-      const rowArr: Array<{ type: string; color: string } | null> = [];
-      for (const f of cols) {
-        const sq = `${f}${r}`;
-        const piece = activeState.board[sq];
-        rowArr.push(piece ? { type: piece.type, color: piece.color } : null);
-      }
-      matrix.push(rowArr);
+  const rawBoardMatrix = useMemo(() => {
+    try {
+      const c = new Chess(activeState.fen);
+      return c.board();
+    } catch {
+      return new Chess().board();
     }
-    return matrix;
-  }, [activeState.board, boardFlipped]);
+  }, [activeState.fen]);
+
+  const displayBoardMatrix = useMemo(() => {
+    if (boardFlipped) {
+      return rawBoardMatrix.slice().reverse().map((row) => row.slice().reverse());
+    }
+    return rawBoardMatrix;
+  }, [rawBoardMatrix, boardFlipped]);
 
   const legalTargets = useMemo(() => {
-    if (!selectedSquare) return [];
-    return ChessEngine.getLegalMovesForSquare(activeState, selectedSquare);
-  }, [activeState, selectedSquare]);
+    if (!selectedSquare || (!isMyTurn && !isBotMode)) return [];
+    return ChessEngine.getLegalMovesFromSquare(activeState.fen, selectedSquare);
+  }, [activeState.fen, selectedSquare, isMyTurn, isBotMode]);
 
   const checkedKingSquare = useMemo(() => {
     if (!activeState.inCheck) return null;
     for (let r = 0; r < 8; r++) {
       for (let c = 0; c < 8; c++) {
-        const cell = boardMatrix[r][c];
+        const cell = rawBoardMatrix[r][c];
         if (cell && cell.type === 'k' && cell.color === activeState.turn) {
-          const files = boardFlipped ? [...FILES].reverse() : FILES;
-          const ranks = boardFlipped ? [...RANKS].reverse() : RANKS;
-          return `${files[c]}${ranks[r]}`;
+          return `${FILES[c]}${RANKS[r]}`;
         }
       }
     }
     return null;
-  }, [activeState.inCheck, activeState.turn, boardMatrix, boardFlipped]);
+  }, [activeState.inCheck, activeState.turn, rawBoardMatrix]);
 
   const finalizeBotMatch = (
     finishedState: ChessState,
@@ -408,87 +405,31 @@ export default function ChessScreen() {
     if (!isMyTurn && !isBotMode) return;
     if (botThinking) return;
 
-    if (!selectedSquare) {
-      const piece = activeState.board[square];
-      if (piece && piece.color === activeState.turn) {
-        setSelectedSquare(square);
-        if (hapticsEnabled) {
-          Haptics.selectionAsync().catch(() => {});
-        }
+    const matchingTarget = legalTargets.find((t) => t.to === square);
+    if (selectedSquare && matchingTarget) {
+      if (matchingTarget.isPromotion) {
+        setPendingPromotion({ from: selectedSquare, to: square });
+        return;
       }
+      executeChessMove(selectedSquare, square);
       return;
     }
 
-    if (selectedSquare === square) {
-      setSelectedSquare(null);
-      return;
-    }
-
-    const clickedPiece = activeState.board[square];
-    if (clickedPiece && clickedPiece.color === activeState.turn) {
-      setSelectedSquare(square);
+    if (cellColor === myColor) {
+      setSelectedSquare(square === selectedSquare ? null : square);
       if (hapticsEnabled) {
         Haptics.selectionAsync().catch(() => {});
       }
-      return;
-    }
-
-    const isLegal = legalTargets.some((m) => m.to === square);
-    if (!isLegal) {
+    } else {
       setSelectedSquare(null);
-      return;
     }
-
-    const movingPiece = activeState.board[selectedSquare];
-    const isPawnPromotion =
-      movingPiece?.type === 'p' &&
-      ((movingPiece.color === 'w' && square.endsWith('8')) ||
-        (movingPiece.color === 'b' && square.endsWith('1')));
-
-    if (isPawnPromotion) {
-      setPendingPromotion({ from: selectedSquare, to: square });
-      return;
-    }
-
-    executeChessMove(selectedSquare, square);
   };
 
   const handleUndo = () => {
-    if (!isBotMode || localChessState.moveHistory.length === 0 || botThinking) return;
-    try {
-      const chess = new Chess(localChessState.fen);
-      chess.undo();
-      if (chess.turn() !== myColor) {
-        chess.undo();
-      }
-      const boardMap: Record<string, { type: ChessPieceSymbol; color: ChessColor }> = {};
-      const matrix = chess.board();
-      for (let r = 0; r < 8; r++) {
-        for (let c = 0; c < 8; c++) {
-          const piece = matrix[r][c];
-          if (piece) {
-            boardMap[`${FILES[c]}${RANKS[r]}`] = {
-              type: piece.type as ChessPieceSymbol,
-              color: piece.color as ChessColor,
-            };
-          }
-        }
-      }
-      setLocalChessState({
-        ...localChessState,
-        fen: chess.fen(),
-        board: boardMap,
-        turn: chess.turn() as ChessColor,
-        inCheck: chess.inCheck(),
-        isCheckmate: chess.isCheckmate(),
-        isDraw: chess.isDraw(),
-        moveHistory: localChessState.moveHistory.slice(0, -2),
-        lastMove: null,
-      });
-      setSelectedSquare(null);
-    } catch {
-      // Ignore
-    }
+    if (!isBotMode || botThinking || localChessState.moveHistory.length === 0) return;
+    const count = localChessState.turn === 'w' ? 2 : 1;
+    setLocalChessState(ChessEngine.undoMoves(localChessState, count));
+    setSelectedSquare(null);
   };
 
   const handleOfferDraw = () => {
@@ -594,7 +535,7 @@ export default function ChessScreen() {
         {/* 8x8 Chessboard (Real 3D GPU Render or 2D High-Performance Fallback) */}
         {!fallback2D ? (
           <ChessScene3D
-            boardMatrix={boardMatrix}
+            boardMatrix={rawBoardMatrix}
             selectedSquare={selectedSquare}
             legalTargets={legalTargets}
             lastMove={activeState.lastMove}
@@ -605,7 +546,7 @@ export default function ChessScreen() {
           />
         ) : (
           <View style={styles.boardFrame}>
-            {boardMatrix.map((row, rIdx) => (
+            {displayBoardMatrix.map((row, rIdx) => (
               <View key={rIdx} style={styles.boardRow}>
                 {row.map((cell, cIdx) => {
                   const squareName = `${displayFiles[cIdx]}${displayRanks[rIdx]}`;
