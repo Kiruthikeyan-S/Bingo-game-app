@@ -38,7 +38,7 @@ export const GameHeader: React.FC<GameHeaderProps> = ({
       <View style={styles.leftRow}>
         {showBack && (
           <TouchableOpacity onPress={handleBack} style={styles.iconButton}>
-            <ArrowLeft color="#e2e8f0" size={24} />
+            <ArrowLeft color="#0F172A" size={22} />
           </TouchableOpacity>
         )}
         <View style={styles.titleColumn}>
@@ -68,9 +68,9 @@ export const GameHeader: React.FC<GameHeaderProps> = ({
             style={styles.iconButton}
           >
             {soundEnabled ? (
-              <Volume2 color="#a5b4fc" size={22} />
+              <Volume2 color="#4F46E5" size={20} />
             ) : (
-              <VolumeX color="#64748b" size={22} />
+              <VolumeX color="#64748B" size={20} />
             )}
           </TouchableOpacity>
         )}
@@ -86,6 +86,9 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: 16,
     paddingVertical: 12,
+    backgroundColor: '#FFFFFF',
+    borderBottomWidth: 1,
+    borderBottomColor: '#E2E8F0',
   },
   leftRow: {
     flexDirection: 'row',
@@ -95,22 +98,25 @@ const styles = StyleSheet.create({
   iconButton: {
     padding: 8,
     borderRadius: 12,
-    backgroundColor: '#1e293b',
+    backgroundColor: '#F1F5F9',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
     marginRight: 12,
   },
   titleColumn: {
     flex: 1,
   },
   title: {
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: '800',
-    color: '#f8fafc',
-    letterSpacing: 0.5,
+    color: '#0F172A',
+    letterSpacing: -0.2,
   },
   subtitle: {
     fontSize: 12,
-    color: '#94a3b8',
-    marginTop: 2,
+    color: '#64748B',
+    marginTop: 1,
+    fontWeight: '500',
   },
   rightRow: {
     flexDirection: 'row',

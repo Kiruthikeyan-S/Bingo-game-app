@@ -10,7 +10,6 @@ export const RoomCode: React.FC<RoomCodeProps> = ({ code }) => {
   const [copied, setCopied] = useState(false);
 
   const handleCopy = () => {
-    // In React Native without clipboard dependency, indicate copied visually
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
@@ -18,7 +17,7 @@ export const RoomCode: React.FC<RoomCodeProps> = ({ code }) => {
   const handleShare = async () => {
     try {
       await Share.share({
-        message: `Join my Bingo Battle match! Use room code: ${code}`,
+        message: `Join my GameZone match! Use room code: ${code}`,
       });
     } catch (err) {
       console.warn('Share error:', err);
@@ -27,7 +26,7 @@ export const RoomCode: React.FC<RoomCodeProps> = ({ code }) => {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.label}>ROOM CODE</Text>
+      <Text style={styles.label}>YOUR GENERATED ROOM CODE</Text>
       <View style={styles.codeRow}>
         {code.split('').map((char, index) => (
           <View key={index} style={styles.charBox}>
@@ -38,15 +37,15 @@ export const RoomCode: React.FC<RoomCodeProps> = ({ code }) => {
 
       <View style={styles.actionsRow}>
         <TouchableOpacity style={styles.actionBtn} onPress={handleCopy}>
-          {copied ? <Check size={16} color="#10b981" /> : <Copy size={16} color="#a5b4fc" />}
+          {copied ? <Check size={16} color="#10B981" /> : <Copy size={16} color="#4F46E5" />}
           <Text style={[styles.actionText, copied && styles.copiedText]}>
-            {copied ? 'Copied!' : 'Copy Code'}
+            {copied ? 'Copied! ✓' : 'Copy Code'}
           </Text>
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.actionBtn} onPress={handleShare}>
-          <Share2 size={16} color="#a5b4fc" />
-          <Text style={styles.actionText}>Share Invite</Text>
+        <TouchableOpacity style={[styles.actionBtn, styles.shareBtn]} onPress={handleShare}>
+          <Share2 size={16} color="#FFFFFF" />
+          <Text style={styles.shareText}>Share Invite</Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -55,19 +54,24 @@ export const RoomCode: React.FC<RoomCodeProps> = ({ code }) => {
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: '#11183c',
+    backgroundColor: '#FFFFFF',
     borderRadius: 20,
     padding: 20,
     alignItems: 'center',
     borderWidth: 1.5,
-    borderColor: 'rgba(99, 102, 241, 0.3)',
+    borderColor: '#E2E8F0',
     marginVertical: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 6,
+    elevation: 3,
   },
   label: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '800',
-    color: '#94a3b8',
-    letterSpacing: 2,
+    color: '#64748B',
+    letterSpacing: 1.5,
     marginBottom: 12,
   },
   codeRow: {
@@ -79,39 +83,51 @@ const styles = StyleSheet.create({
     width: 44,
     height: 52,
     borderRadius: 12,
-    backgroundColor: '#1e293b',
+    backgroundColor: '#F1F5F9',
     borderWidth: 1.5,
-    borderColor: '#6366f1',
+    borderColor: '#CBD5E1',
     alignItems: 'center',
     justifyContent: 'center',
   },
   charText: {
     fontSize: 24,
     fontWeight: '900',
-    color: '#00e5ff',
+    color: '#4F46E5',
     letterSpacing: 1,
   },
   actionsRow: {
     flexDirection: 'row',
     gap: 12,
+    width: '100%',
   },
   actionBtn: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    backgroundColor: '#1e293b',
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 12,
+    justifyContent: 'center',
+    backgroundColor: '#F8FAFC',
     borderWidth: 1,
-    borderColor: '#334155',
+    borderColor: '#E2E8F0',
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderRadius: 12,
+    gap: 6,
+  },
+  shareBtn: {
+    backgroundColor: '#4F46E5',
+    borderColor: '#4F46E5',
   },
   actionText: {
-    color: '#e2e8f0',
-    fontSize: 13,
-    fontWeight: '600',
+    color: '#4F46E5',
+    fontSize: 12,
+    fontWeight: '800',
   },
   copiedText: {
-    color: '#10b981',
+    color: '#10B981',
+  },
+  shareText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '800',
   },
 });

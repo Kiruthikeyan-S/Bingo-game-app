@@ -11,11 +11,11 @@ const GAP = 8;
 const CELL_SIZE = Math.floor((width - OUTER_MARGIN - BOARD_PADDING - GAP * 4) / 5);
 
 const BINGO_HEADERS = [
-  { letter: 'B', color: '#FF5C5C' },
-  { letter: 'I', color: '#F5A623' },
-  { letter: 'N', color: '#7ED321' },
-  { letter: 'G', color: '#34D399' },
-  { letter: 'O', color: '#38BDF8' },
+  { letter: 'B', bg: '#EEF2FF', text: '#4F46E5' },
+  { letter: 'I', bg: '#ECFEFF', text: '#0891B2' },
+  { letter: 'N', bg: '#F1F5F9', text: '#0F172A' },
+  { letter: 'G', bg: '#ECFEFF', text: '#0891B2' },
+  { letter: 'O', bg: '#EEF2FF', text: '#4F46E5' },
 ];
 
 interface BingoBoardProps {
@@ -42,14 +42,14 @@ export const BingoBoard: React.FC<BingoBoardProps> = ({
 
   return (
     <View style={styles.gridContainer}>
-      {/* 5 Column Headers matching Image 3 */}
+      {/* 5 Column Headers matching Stitch Modern Light */}
       <View style={styles.headerRow}>
         {BINGO_HEADERS.map((h) => (
           <View
             key={h.letter}
-            style={[styles.headerCell, { backgroundColor: h.color }]}
+            style={[styles.headerCell, { backgroundColor: h.bg }]}
           >
-            <Text style={styles.headerLetter}>{h.letter}</Text>
+            <Text style={[styles.headerLetter, { color: h.text }]}>{h.letter}</Text>
           </View>
         ))}
       </View>
@@ -82,15 +82,15 @@ export const BingoBoard: React.FC<BingoBoardProps> = ({
 const styles = StyleSheet.create({
   gridContainer: {
     padding: 12,
-    backgroundColor: '#0F291E',
-    borderRadius: 24,
-    borderWidth: 2,
-    borderColor: '#34D399',
-    shadowColor: '#10B981',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.25,
-    shadowRadius: 16,
-    elevation: 8,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.05,
+    shadowRadius: 10,
+    elevation: 3,
     alignItems: 'center',
   },
   headerRow: {
@@ -101,18 +101,12 @@ const styles = StyleSheet.create({
   },
   headerCell: {
     width: CELL_SIZE,
-    height: 36,
-    borderRadius: 12,
+    height: 38,
+    borderRadius: 10,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 3,
-    elevation: 3,
   },
   headerLetter: {
-    color: '#FFFFFF',
     fontSize: 18,
     fontWeight: '900',
     letterSpacing: 0.5,
@@ -121,7 +115,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 8,
+    width: CELL_SIZE * 5 + 32,
     justifyContent: 'center',
-    alignItems: 'center',
   },
 });

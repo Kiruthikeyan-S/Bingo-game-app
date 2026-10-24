@@ -64,7 +64,7 @@ export default function JoinRoomScreen() {
         <ScrollView contentContainerStyle={styles.content}>
           <View style={styles.centerSection}>
             <View style={styles.iconCircle}>
-              <KeyRound size={36} color="#00e5ff" />
+              <KeyRound size={32} color="#0891B2" />
             </View>
 
             <Text style={styles.title}>Enter 6-Digit Code</Text>
@@ -80,7 +80,7 @@ export default function JoinRoomScreen() {
                   setError(null);
                 }}
                 placeholder="e.g. 7K2M9X"
-                placeholderTextColor="#475569"
+                placeholderTextColor="#94A3B8"
                 maxLength={6}
                 autoCapitalize="characters"
                 autoCorrect={false}
@@ -107,7 +107,7 @@ export default function JoinRoomScreen() {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#070b1e',
+    backgroundColor: '#F8FAFC',
   },
   keyboardContainer: {
     flex: 1,
@@ -118,29 +118,37 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   centerSection: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 24,
+    padding: 24,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
     alignItems: 'center',
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 8,
+    elevation: 2,
   },
   iconCircle: {
-    width: 76,
-    height: 76,
-    borderRadius: 24,
-    backgroundColor: '#11183c',
-    borderWidth: 1.5,
-    borderColor: '#00e5ff',
+    width: 64,
+    height: 64,
+    borderRadius: 20,
+    backgroundColor: '#ECFEFF',
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 20,
+    marginBottom: 16,
   },
   title: {
-    fontSize: 24,
+    fontSize: 22,
     fontWeight: '800',
-    color: '#f8fafc',
+    color: '#0F172A',
   },
   subtitle: {
-    fontSize: 14,
-    color: '#94a3b8',
-    marginTop: 6,
-    marginBottom: 28,
+    fontSize: 13,
+    color: '#64748B',
+    marginTop: 4,
+    marginBottom: 24,
     textAlign: 'center',
   },
   inputContainer: {
@@ -148,24 +156,24 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   input: {
-    backgroundColor: '#11183c',
+    backgroundColor: '#F8FAFC',
     borderRadius: 16,
-    borderWidth: 2,
-    borderColor: '#6366f1',
-    paddingVertical: 18,
+    borderWidth: 1.5,
+    borderColor: '#E2E8F0',
+    paddingVertical: 14,
     textAlign: 'center',
-    fontSize: 28,
+    fontSize: 26,
     fontWeight: '900',
-    color: '#00e5ff',
-    letterSpacing: 8,
+    color: '#4F46E5',
+    letterSpacing: 6,
   },
   inputError: {
-    borderColor: '#ef4444',
+    borderColor: '#EF4444',
   },
   errorText: {
-    color: '#ef4444',
-    fontSize: 13,
-    marginTop: 8,
+    color: '#EF4444',
+    fontSize: 12,
+    marginTop: 6,
     textAlign: 'center',
   },
 });

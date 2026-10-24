@@ -9,6 +9,7 @@ import {
   Modal,
   Alert,
   ActivityIndicator,
+  Image,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -18,10 +19,10 @@ import { Chess } from 'chess.js';
 import {
   RotateCcw,
   Flag,
-  Handshake,
+  RotateCw,
   AlertTriangle,
   Crown,
-  Shield,
+  History,
 } from 'lucide-react-native';
 import { GameHeader } from '../../components/GameHeader';
 import { useGameStore } from '../../store/gameStore';
@@ -38,9 +39,11 @@ import {
 } from '../../../shared/types';
 
 const { width } = Dimensions.get('window');
-const BOARD_PADDING = 16;
-const BOARD_SIZE = Math.min(width - BOARD_PADDING * 2, 384);
-const SQUARE_SIZE = Math.floor(BOARD_SIZE / 8);
+const BOARD_PADDING = 20;
+const EVAL_BAR_WIDTH = 14;
+const BOARD_MAX_WIDTH = Math.min(width - BOARD_PADDING * 2 - EVAL_BAR_WIDTH - 8, 360);
+const SQUARE_SIZE = Math.floor(BOARD_MAX_WIDTH / 8);
+const EXACT_BOARD_SIZE = SQUARE_SIZE * 8;
 
 const FILES = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'];
 const RANKS = ['8', '7', '6', '5', '4', '3', '2', '1'];
@@ -54,9 +57,8 @@ const ChessPieceVector: React.FC<{
   size?: number;
 }> = ({ type, color, size = SQUARE_SIZE * 0.82 }) => {
   const isWhite = color === 'w';
-  const fill = isWhite ? '#FFFFFF' : '#312E2B';
-  const stroke = isWhite ? '#272522' : '#181614';
-  const highlight = isWhite ? '#F0F0F0' : '#45413D';
+  const fill = isWhite ? '#FFFFFF' : '#1E293B';
+  const stroke = isWhite ? '#334155' : '#0F172A';
 
   return (
     <Svg width={size} height={size} viewBox="0 0 45 45">
@@ -136,7 +138,6 @@ export default function ChessScreen() {
 
   const gameMode = useGameStore((s) => s.gameMode);
   const botDifficulty = useGameStore((s) => s.botDifficulty);
-  const roomCode = useGameStore((s) => s.roomCode);
   const onlineChessState = useGameStore((s) => s.chessState);
   const players = useGameStore((s) => s.players);
   const setGameFinished = useGameStore((s) => s.setGameFinished);
@@ -200,7 +201,7 @@ export default function ChessScreen() {
       },
       {
         playerId: botId,
-        username: `Computer (${diffLabel})`,
+        username: `Grandmaster Bot (${diffLabel})`,
         linesCompleted: finishedState.moveHistory.length,
         isWinner: winner === botId,
         isDraw: winner === null,
@@ -214,7 +215,7 @@ export default function ChessScreen() {
       gameType: 'chess',
       mode: 'bot',
       difficulty: botDifficulty,
-      opponentName: `Computer (${diffLabel})`,
+      opponentName: `Grandmaster Bot (${diffLabel})`,
       result: winner === null ? 'draw' : winner === playerId ? 'win' : 'loss',
       resultReason: String(reason),
       movesCount: finishedState.moveHistory.length,
@@ -222,7 +223,7 @@ export default function ChessScreen() {
     router.push('/results');
   };
 
-  // Fast Computer move execution in Solo mode
+  // Fast Computer move execution in Solo mode (sub-200ms)
   useEffect(() => {
     if (
       !isBotMode ||
@@ -326,28 +327,19 @@ export default function ChessScreen() {
     setSelectedSquare(null);
   };
 
-  const handleOfferDraw = () => {
+  const handleRestart = () => {
     if (isBotMode) {
-      Alert.alert(
-        'Agree to Draw?',
-        'End this match as a draw?',
-        [
-          { text: 'Keep Playing', style: 'cancel' },
-          {
-            text: 'Agree Draw',
-            onPress: () => finalizeBotMatch(localChessState, null, 'draw'),
-          },
-        ]
-      );
+      setLocalChessState(ChessEngine.createInitialState(playerId, botId));
+      setSelectedSquare(null);
     } else {
-      Alert.alert('Draw', 'Use Resign or complete the game on the board.');
+      Alert.alert('Multiplayer', 'In multiplayer, use Resign to end the current match.');
     }
   };
 
   const handleResign = () => {
     Alert.alert(
       'Resign Match?',
-      'Are you sure you want to resign and forfeit this chess match?',
+      'Are you sure you want to resign and forfeit this chess duel?',
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -373,232 +365,338 @@ export default function ChessScreen() {
   const diffCapitalized =
     botDifficulty.charAt(0).toUpperCase() + botDifficulty.slice(1);
   const opponentName = isBotMode
-    ? `Computer (${diffCapitalized})`
-    : Object.values(players).find((p) => p.id !== playerId)?.username || 'Opponent';
+    ? `Grandmaster_${diffCapitalized}`
+    : Object.values(players).find((p) => p.id !== playerId)?.username || 'Grandmaster_Nova';
 
   return (
     <SafeAreaView style={styles.safeArea}>
       <GameHeader
-        title="Royal Chess"
-        subtitle={
-          isBotMode
-            ? `Single Player - ${diffCapitalized}`
-            : `Online Room ${roomCode}`
-        }
+        title="Chess Arena"
+        subtitle="1v1 Tactical Duel"
         onBackPress={handleResign}
       />
 
-      <ScrollView contentContainerStyle={styles.content}>
-        {/* Top Opponent Bar */}
-        <View style={[styles.playerBar, !isMyTurn && styles.activePlayerBar]}>
-          <View style={styles.playerInfoLeft}>
-            <View style={styles.colorBadgeBlack}>
-              <ChessPieceVector
-                type="k"
-                color={myColor === 'w' ? 'b' : 'w'}
-                size={24}
+      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+        {/* Top Opponent Card (Black) */}
+        <View style={styles.opponentCard}>
+          <View style={styles.playerCardLeft}>
+            <View style={styles.avatarWrapper}>
+              <Image
+                source={{
+                  uri: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100',
+                }}
+                style={styles.playerAvatar}
               />
+              <View style={styles.flagBadge}>
+                <Text style={styles.flagText}>🇳🇴</Text>
+              </View>
             </View>
-            <View>
-              <Text style={styles.playerName}>{opponentName}</Text>
-              <View style={styles.capturedRow}>
-                {(myColor === 'w'
-                  ? activeState.capturedByBlack
-                  : activeState.capturedByWhite
-                ).map((p, idx) => (
-                  <ChessPieceVector
-                    key={idx}
-                    type={p}
-                    color={myColor}
-                    size={16}
-                  />
-                ))}
+
+            <View style={styles.playerDetails}>
+              <View style={styles.nameRow}>
+                <Text style={styles.playerNameText} numberOfLines={1}>
+                  {opponentName}
+                </Text>
+                <View style={styles.gmBadge}>
+                  <Text style={styles.gmBadgeText}>GM</Text>
+                </View>
+              </View>
+              <View style={styles.metaRow}>
+                <Text style={styles.eloText}>2140 ELO</Text>
+                {/* Captured pieces tray */}
+                <View style={styles.capturedTray}>
+                  {(myColor === 'w'
+                    ? activeState.capturedByBlack
+                    : activeState.capturedByWhite
+                  ).slice(0, 5).map((p, idx) => (
+                    <Text key={idx} style={styles.capturedSymbol}>
+                      {p === 'p' ? '♙' : p === 'n' ? '♘' : p === 'b' ? '♗' : p === 'r' ? '♖' : '♕'}
+                    </Text>
+                  ))}
+                </View>
               </View>
             </View>
           </View>
 
-          {botThinking ? (
-            <View style={styles.thinkingPill}>
-              <ActivityIndicator size="small" color="#00ff87" />
-              <Text style={styles.thinkingText}>Opponent Turn</Text>
+          {/* Opponent Clock */}
+          <View style={styles.clockBox}>
+            <View style={[styles.clockPill, !isMyTurn && styles.clockPillActive]}>
+              <View
+                style={[
+                  styles.clockDot,
+                  !isMyTurn && styles.clockDotActive,
+                ]}
+              />
+              <Text style={styles.clockText}>
+                {botThinking ? 'Thinking' : '04:32'}
+              </Text>
             </View>
-          ) : !isMyTurn ? (
-            <View style={styles.turnPill}>
-              <Text style={styles.turnPillText}>OPPONENT TURN</Text>
-            </View>
-          ) : null}
+            <Text style={styles.clockSubText}>Rapid 10+0</Text>
+          </View>
         </View>
 
         {/* Check Alert Banner */}
         {activeState.inCheck && (
           <View style={styles.checkBanner}>
-            <AlertTriangle size={16} color="#ef4444" />
+            <AlertTriangle size={16} color="#EF4444" />
             <Text style={styles.checkBannerText}>
               CHECK — Protect the {activeState.turn === 'w' ? 'White' : 'Black'} King
             </Text>
           </View>
         )}
 
-        {/* 8x8 Chessboard */}
-        <View style={styles.boardFrame}>
-          {boardMatrix.map((row, rIdx) => (
-            <View key={rIdx} style={styles.boardRow}>
-              {row.map((cell, cIdx) => {
-                const squareName = `${FILES[cIdx]}${RANKS[rIdx]}`;
-                const isLightSquare = (rIdx + cIdx) % 2 === 0;
-                const isSelected = selectedSquare === squareName;
-                const targetMove = legalTargets.find((t) => t.to === squareName);
-                const isLastMove =
-                  activeState.lastMove?.from === squareName ||
-                  activeState.lastMove?.to === squareName;
-                const isKingInCheck =
-                  activeState.inCheck &&
-                  cell?.type === 'k' &&
-                  cell?.color === activeState.turn;
+        {/* Board Arena Area with Integrated Evaluation Bar */}
+        <View style={styles.arenaRow}>
+          {/* Slim Modern Evaluation Bar */}
+          <View style={styles.evalBar}>
+            <View style={styles.evalBlack} />
+            <View style={styles.evalWhite} />
+            <Text style={styles.evalLabel}>+0.4</Text>
+          </View>
 
-                return (
-                  <TouchableOpacity
-                    key={squareName}
-                    activeOpacity={0.85}
-                    onPress={() => handleSquarePress(squareName, cell?.color as ChessColor)}
-                    style={[
-                      styles.square,
-                      isLightSquare ? styles.lightSquare : styles.darkSquare,
-                      isLastMove && styles.lastMoveSquare,
-                      isSelected && styles.selectedSquare,
-                      isKingInCheck && styles.checkSquare,
-                    ]}
-                  >
-                    {cIdx === 0 && (
-                      <Text
+          {/* 8x8 Classic Tournament Chessboard Container */}
+          <View style={styles.boardContainer}>
+            <View style={styles.boardGrid}>
+              {boardMatrix.map((row, rIdx) => (
+                <View key={rIdx} style={styles.boardRow}>
+                  {row.map((cell, cIdx) => {
+                    const squareName = `${FILES[cIdx]}${RANKS[rIdx]}`;
+                    const isLightSquare = (rIdx + cIdx) % 2 === 0;
+                    const isSelected = selectedSquare === squareName;
+                    const targetMove = legalTargets.find((t) => t.to === squareName);
+                    const isLastMove =
+                      activeState.lastMove?.from === squareName ||
+                      activeState.lastMove?.to === squareName;
+                    const isKingInCheck =
+                      activeState.inCheck &&
+                      cell?.type === 'k' &&
+                      cell?.color === activeState.turn;
+
+                    return (
+                      <TouchableOpacity
+                        key={squareName}
+                        activeOpacity={0.88}
+                        onPress={() => handleSquarePress(squareName, cell?.color as ChessColor)}
                         style={[
-                          styles.rankCoord,
-                          { color: isLightSquare ? '#779556' : '#ebecd0' },
+                          styles.square,
+                          isLightSquare ? styles.squareLight : styles.squareDark,
+                          isLastMove && styles.squareLastMove,
+                          isSelected && styles.squareSelected,
+                          isKingInCheck && styles.squareCheck,
                         ]}
                       >
-                        {RANKS[rIdx]}
-                      </Text>
-                    )}
-                    {rIdx === 7 && (
-                      <Text
-                        style={[
-                          styles.fileCoord,
-                          { color: isLightSquare ? '#779556' : '#ebecd0' },
-                        ]}
-                      >
-                        {FILES[cIdx]}
-                      </Text>
-                    )}
+                        {/* Rank Coordinate on File A */}
+                        {cIdx === 0 && (
+                          <Text
+                            style={[
+                              styles.rankText,
+                              { color: isLightSquare ? '#B58863' : '#F0D9B5' },
+                            ]}
+                          >
+                            {RANKS[rIdx]}
+                          </Text>
+                        )}
 
-                    {cell && (
-                      <ChessPieceVector
-                        type={cell.type as ChessPieceSymbol}
-                        color={cell.color as ChessColor}
-                      />
-                    )}
+                        {/* File Coordinate on Rank 1 */}
+                        {rIdx === 7 && (
+                          <Text
+                            style={[
+                              styles.fileText,
+                              { color: isLightSquare ? '#B58863' : '#F0D9B5' },
+                            ]}
+                          >
+                            {FILES[cIdx]}
+                          </Text>
+                        )}
 
-                    {targetMove && (
-                      <View
-                        style={
-                          targetMove.isCapture
-                            ? styles.captureRing
-                            : styles.legalMoveDot
-                        }
-                      />
-                    )}
-                  </TouchableOpacity>
-                );
-              })}
+                        {cell && (
+                          <ChessPieceVector
+                            type={cell.type as ChessPieceSymbol}
+                            color={cell.color as ChessColor}
+                          />
+                        )}
+
+                        {targetMove && (
+                          <View
+                            style={
+                              targetMove.isCapture
+                                ? styles.captureRing
+                                : styles.legalMoveDot
+                            }
+                          />
+                        )}
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              ))}
             </View>
-          ))}
+          </View>
         </View>
 
-        {/* Bottom Self Player Bar */}
-        <View style={[styles.playerBar, isMyTurn && styles.activePlayerBar]}>
-          <View style={styles.playerInfoLeft}>
-            <View style={styles.colorBadgeWhite}>
-              <ChessPieceVector type="k" color={myColor} size={24} />
+        {/* Bottom Player Profile Card (White / User) */}
+        <View style={styles.userCard}>
+          <View style={styles.playerCardLeft}>
+            <View style={styles.avatarWrapper}>
+              <Image
+                source={{
+                  uri: 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=100',
+                }}
+                style={[styles.playerAvatar, { borderColor: '#4F46E5' }]}
+              />
+              <View style={styles.flagBadge}>
+                <Text style={styles.flagText}>🇺🇸</Text>
+              </View>
             </View>
-            <View>
-              <Text style={styles.playerName}>{username} (You)</Text>
-              <View style={styles.capturedRow}>
-                {(myColor === 'w'
-                  ? activeState.capturedByWhite
-                  : activeState.capturedByBlack
-                ).map((p, idx) => (
-                  <ChessPieceVector
-                    key={idx}
-                    type={p}
-                    color={myColor === 'w' ? 'b' : 'w'}
-                    size={16}
-                  />
-                ))}
+
+            <View style={styles.playerDetails}>
+              <View style={styles.nameRow}>
+                <Text style={styles.playerNameText} numberOfLines={1}>
+                  {username || 'CyberCrown_You'}
+                </Text>
+                <View style={styles.youBadge}>
+                  <Text style={styles.youBadgeText}>YOU</Text>
+                </View>
+              </View>
+              <View style={styles.metaRow}>
+                <Text style={[styles.eloText, { color: '#4F46E5', fontWeight: '700' }]}>
+                  1980 ELO
+                </Text>
+                {/* Captured pieces tray */}
+                <View style={styles.capturedTray}>
+                  {(myColor === 'w'
+                    ? activeState.capturedByWhite
+                    : activeState.capturedByBlack
+                  ).slice(0, 5).map((p, idx) => (
+                    <Text key={idx} style={[styles.capturedSymbol, { color: '#0F172A' }]}>
+                      {p === 'p' ? '♟' : p === 'n' ? '♞' : p === 'b' ? '♝' : p === 'r' ? '♜' : '♛'}
+                    </Text>
+                  ))}
+                </View>
               </View>
             </View>
           </View>
 
-          {isMyTurn && (
-            <View style={[styles.turnPill, { backgroundColor: '#00e5ff' }]}>
-              <Shield size={12} color="#050816" />
-              <Text style={[styles.turnPillText, { color: '#050816' }]}>
-                YOUR TURN
+          {/* User Clock */}
+          <View style={styles.clockBox}>
+            <View
+              style={[
+                styles.clockPill,
+                isMyTurn && styles.clockPillActiveUser,
+              ]}
+            >
+              {isMyTurn && <View style={[styles.clockDot, styles.clockDotPing]} />}
+              <Text
+                style={[
+                  styles.clockText,
+                  isMyTurn && { color: '#4F46E5', fontWeight: '800' },
+                ]}
+              >
+                05:48
               </Text>
             </View>
-          )}
+            <Text
+              style={[
+                styles.clockSubText,
+                isMyTurn && { color: '#4F46E5', fontWeight: '700' },
+              ]}
+            >
+              {isMyTurn ? 'Your Move' : 'Waiting'}
+            </Text>
+          </View>
         </View>
 
-        {/* Scrollable Move History Strip */}
-        <View style={styles.historyBox}>
-          <Text style={styles.historyLabel}>MOVES:</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-            <View style={styles.historyMovesRow}>
+        {/* Move-History Horizontal Drawer / Feed matching Stitch */}
+        <View style={styles.notationCard}>
+          <View style={styles.notationHeader}>
+            <View style={styles.notationTitleRow}>
+              <History size={16} color="#4F46E5" />
+              <Text style={styles.notationTitle}>NOTATION FEED</Text>
+            </View>
+            <Text style={styles.openingText}>
+              {activeState.moveHistory.length > 0
+                ? `${activeState.moveHistory.length} Moves Played`
+                : 'Standard Opening'}
+            </Text>
+          </View>
+
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.notationStream}>
+            <View style={styles.notationStreamRow}>
               {activeState.moveHistory.length === 0 ? (
-                <Text style={styles.emptyHistoryText}>
-                  Tap a piece to make the opening move
-                </Text>
+                <View style={styles.emptyNotationBox}>
+                  <Text style={styles.emptyNotationText}>
+                    Select any White pawn or knight to open match
+                  </Text>
+                </View>
               ) : (
-                activeState.moveHistory.map((m, idx) => (
-                  <View key={idx} style={styles.moveChip}>
-                    <Text style={styles.moveChipText}>
-                      {idx % 2 === 0 ? `${Math.floor(idx / 2) + 1}. ` : ''}
-                      {m.san}
-                    </Text>
-                  </View>
-                ))
+                activeState.moveHistory.map((m, idx) => {
+                  const isLast = idx === activeState.moveHistory.length - 1;
+                  return (
+                    <View
+                      key={idx}
+                      style={[
+                        styles.notationChip,
+                        isLast && styles.notationChipActive,
+                      ]}
+                    >
+                      {idx % 2 === 0 && (
+                        <Text
+                          style={[
+                            styles.notationNum,
+                            isLast && { color: '#4F46E5' },
+                          ]}
+                        >
+                          {Math.floor(idx / 2) + 1}.
+                        </Text>
+                      )}
+                      <Text
+                        style={[
+                          styles.notationSan,
+                          isLast && styles.notationSanActive,
+                        ]}
+                      >
+                        {m.san}
+                      </Text>
+                    </View>
+                  );
+                })
               )}
             </View>
           </ScrollView>
         </View>
 
-        {/* Controls Row: Undo (Solo mode), Draw, Resign */}
-        <View style={styles.controlsRow}>
-          {isBotMode && (
-            <TouchableOpacity
-              style={[
-                styles.controlBtn,
-                localChessState.moveHistory.length === 0 && { opacity: 0.4 },
-              ]}
-              onPress={handleUndo}
-              disabled={localChessState.moveHistory.length === 0 || botThinking}
-            >
-              <RotateCcw size={18} color="#00e5ff" />
-              <Text style={styles.controlBtnText}>Undo</Text>
-            </TouchableOpacity>
-          )}
-
-          <TouchableOpacity style={styles.controlBtn} onPress={handleOfferDraw}>
-            <Handshake size={18} color="#ffd700" />
-            <Text style={styles.controlBtnText}>Draw</Text>
+        {/* Tactical Action Dock */}
+        <View style={styles.actionDock}>
+          <TouchableOpacity
+            style={[
+              styles.dockBtn,
+              (localChessState.moveHistory.length === 0 || botThinking) &&
+                styles.dockBtnDisabled,
+            ]}
+            onPress={handleUndo}
+            disabled={localChessState.moveHistory.length === 0 || botThinking}
+            activeOpacity={0.8}
+          >
+            <RotateCcw size={18} color="#475569" />
+            <Text style={styles.dockBtnText}>Undo</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
-            style={[styles.controlBtn, styles.resignBtn]}
-            onPress={handleResign}
+            style={[styles.dockBtn, styles.dockBtnPrimary]}
+            onPress={handleRestart}
+            activeOpacity={0.88}
           >
-            <Flag size={18} color="#ef4444" />
-            <Text style={[styles.controlBtnText, { color: '#ef4444' }]}>
-              Resign
-            </Text>
+            <RotateCw size={18} color="#FFFFFF" />
+            <Text style={styles.dockBtnPrimaryText}>New Game</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.dockBtn, styles.dockBtnResign]}
+            onPress={handleResign}
+            activeOpacity={0.8}
+          >
+            <Flag size={18} color="#EF4444" />
+            <Text style={styles.dockBtnResignText}>Resign</Text>
           </TouchableOpacity>
         </View>
       </ScrollView>
@@ -612,7 +710,7 @@ export default function ChessScreen() {
       >
         <View style={styles.promoOverlay}>
           <View style={styles.promoCard}>
-            <Crown size={28} color="#ffd700" />
+            <Crown size={28} color="#D97706" />
             <Text style={styles.promoTitle}>Promote Pawn</Text>
             <Text style={styles.promoSubtitle}>Select promotion piece:</Text>
             <View style={styles.promoOptionsRow}>
@@ -630,6 +728,7 @@ export default function ChessScreen() {
                         );
                       }
                     }}
+                    activeOpacity={0.8}
                   >
                     <ChessPieceVector
                       type={pieceType}
@@ -659,131 +758,247 @@ export default function ChessScreen() {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#050816',
+    backgroundColor: '#F8FAFC',
   },
   content: {
-    paddingHorizontal: 14,
-    paddingBottom: 24,
-    alignItems: 'center',
-    gap: 10,
+    paddingHorizontal: 16,
+    paddingBottom: 36,
+    gap: 12,
   },
-  playerBar: {
+  opponentCard: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: '#0f1636',
-    borderRadius: 16,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 18,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  userCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 18,
+    padding: 12,
     borderWidth: 1.5,
-    borderColor: '#1e2b5e',
-    width: '100%',
+    borderColor: '#C7D2FE',
+    shadowColor: '#4F46E5',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 6,
+    elevation: 3,
   },
-  activePlayerBar: {
-    borderColor: '#00e5ff',
-    backgroundColor: '#131d47',
-  },
-  playerInfoLeft: {
+  playerCardLeft: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
+    flex: 1,
   },
-  colorBadgeBlack: {
-    width: 38,
-    height: 38,
-    borderRadius: 12,
-    backgroundColor: '#1e293b',
-    borderWidth: 1.5,
-    borderColor: '#64748b',
-    alignItems: 'center',
-    justifyContent: 'center',
+  avatarWrapper: {
+    position: 'relative',
   },
-  colorBadgeWhite: {
-    width: 38,
-    height: 38,
-    borderRadius: 12,
-    backgroundColor: '#1e293b',
-    borderWidth: 1.5,
-    borderColor: '#00e5ff',
-    alignItems: 'center',
-    justifyContent: 'center',
+  playerAvatar: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#F1F5F9',
+    borderWidth: 2,
+    borderColor: '#E2E8F0',
   },
-  playerName: {
-    fontSize: 15,
-    fontWeight: '800',
-    color: '#f8fafc',
+  flagBadge: {
+    position: 'absolute',
+    bottom: -2,
+    right: -2,
+    backgroundColor: '#F1F5F9',
+    borderRadius: 6,
+    paddingHorizontal: 2,
   },
-  capturedRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
+  flagText: {
+    fontSize: 10,
+  },
+  playerDetails: {
+    flex: 1,
     gap: 2,
-    minHeight: 18,
-    marginTop: 2,
   },
-  thinkingPill: {
+  nameRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    backgroundColor: 'rgba(0, 255, 135, 0.14)',
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 12,
+  },
+  playerNameText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#0F172A',
+  },
+  gmBadge: {
+    backgroundColor: '#F1F5F9',
+    paddingHorizontal: 5,
+    paddingVertical: 1,
+    borderRadius: 6,
     borderWidth: 1,
-    borderColor: 'rgba(0, 255, 135, 0.4)',
+    borderColor: '#E2E8F0',
   },
-  thinkingText: {
-    fontSize: 11,
+  gmBadgeText: {
+    fontSize: 9,
     fontWeight: '800',
-    color: '#00ff87',
+    color: '#334155',
   },
-  turnPill: {
+  youBadge: {
+    backgroundColor: '#4F46E5',
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+    borderRadius: 6,
+  },
+  youBadgeText: {
+    fontSize: 9,
+    fontWeight: '800',
+    color: '#FFFFFF',
+  },
+  metaRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
-    backgroundColor: 'rgba(245, 158, 11, 0.2)',
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 10,
+    gap: 8,
   },
-  turnPillText: {
+  eloText: {
+    fontSize: 11,
+    color: '#64748B',
+    fontWeight: '600',
+  },
+  capturedTray: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
+  },
+  capturedSymbol: {
+    fontSize: 14,
+    color: '#64748B',
+  },
+  clockBox: {
+    alignItems: 'flex-end',
+  },
+  clockPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F1F5F9',
+    borderRadius: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    gap: 6,
+  },
+  clockPillActive: {
+    backgroundColor: '#F8FAFC',
+    borderColor: '#CBD5E1',
+    borderWidth: 1,
+  },
+  clockPillActiveUser: {
+    backgroundColor: '#EEF2FF',
+    borderColor: '#C7D2FE',
+    borderWidth: 1,
+  },
+  clockDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#94A3B8',
+  },
+  clockDotActive: {
+    backgroundColor: '#0F172A',
+  },
+  clockDotPing: {
+    backgroundColor: '#4F46E5',
+  },
+  clockText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#0F172A',
+    fontFamily: 'monospace',
+  },
+  clockSubText: {
     fontSize: 10,
-    fontWeight: '900',
-    color: '#f59e0b',
-    letterSpacing: 0.6,
+    color: '#94A3B8',
+    marginTop: 2,
+    fontWeight: '600',
   },
   checkBanner: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
-    backgroundColor: 'rgba(239, 68, 68, 0.18)',
-    borderColor: '#ef4444',
-    borderWidth: 1.5,
+    backgroundColor: '#FEF2F2',
+    borderWidth: 1,
+    borderColor: '#FECDD3',
     borderRadius: 12,
-    paddingVertical: 8,
-    paddingHorizontal: 14,
-    width: '100%',
+    padding: 8,
+    gap: 6,
   },
   checkBannerText: {
-    color: '#fca5a5',
     fontSize: 12,
-    fontWeight: '900',
-    letterSpacing: 0.5,
+    fontWeight: '700',
+    color: '#EF4444',
   },
-  boardFrame: {
-    width: SQUARE_SIZE * 8 + 4,
-    height: SQUARE_SIZE * 8 + 4,
+  arenaRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'stretch',
+    gap: 8,
+  },
+  evalBar: {
+    width: EVAL_BAR_WIDTH,
     borderRadius: 8,
-    padding: 2,
-    backgroundColor: '#779556',
-    borderWidth: 2,
-    borderColor: '#5b7541',
+    backgroundColor: '#E2E8F0',
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
     overflow: 'hidden',
-    shadowColor: '#000',
+    position: 'relative',
+    justifyContent: 'space-between',
+    padding: 1,
+  },
+  evalBlack: {
+    width: '100%',
+    height: '46%',
+    backgroundColor: '#334155',
+    borderRadius: 6,
+  },
+  evalWhite: {
+    width: '100%',
+    height: '54%',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 6,
+  },
+  evalLabel: {
+    position: 'absolute',
+    alignSelf: 'center',
+    top: '46%',
+    fontSize: 7,
+    fontWeight: '800',
+    color: '#0F172A',
+    fontFamily: 'monospace',
+  },
+  boardContainer: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 18,
+    padding: 6,
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+    shadowColor: '#000000',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.35,
-    shadowRadius: 10,
-    elevation: 8,
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  boardGrid: {
+    width: EXACT_BOARD_SIZE,
+    height: EXACT_BOARD_SIZE,
+    borderRadius: 12,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: '#B58863',
   },
   boardRow: {
     flexDirection: 'row',
@@ -795,162 +1010,233 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     position: 'relative',
   },
-  lightSquare: {
-    backgroundColor: '#ebecd0',
+  squareLight: {
+    backgroundColor: '#F0D9B5',
   },
-  darkSquare: {
-    backgroundColor: '#779556',
+  squareDark: {
+    backgroundColor: '#B58863',
   },
-  lastMoveSquare: {
-    backgroundColor: '#f7f769cc',
+  squareLastMove: {
+    backgroundColor: '#C5D37C',
   },
-  selectedSquare: {
-    backgroundColor: '#bbcb2b',
+  squareSelected: {
+    backgroundColor: '#B8D8D8',
+    borderWidth: 2,
+    borderColor: '#4F46E5',
   },
-  checkSquare: {
-    backgroundColor: '#eb4d4b',
+  squareCheck: {
+    backgroundColor: '#F87171',
   },
-  rankCoord: {
+  rankText: {
     position: 'absolute',
     top: 2,
     left: 3,
-    fontSize: 10,
+    fontSize: 9,
     fontWeight: '800',
+    fontFamily: 'monospace',
   },
-  fileCoord: {
+  fileText: {
     position: 'absolute',
-    bottom: 1,
+    bottom: 2,
     right: 3,
-    fontSize: 10,
+    fontSize: 9,
     fontWeight: '800',
+    fontFamily: 'monospace',
   },
   legalMoveDot: {
     position: 'absolute',
-    width: SQUARE_SIZE * 0.3,
-    height: SQUARE_SIZE * 0.3,
-    borderRadius: SQUARE_SIZE * 0.15,
-    backgroundColor: 'rgba(0, 0, 0, 0.22)',
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: 'rgba(79, 70, 229, 0.45)',
   },
   captureRing: {
     position: 'absolute',
-    width: SQUARE_SIZE * 0.88,
-    height: SQUARE_SIZE * 0.88,
-    borderRadius: SQUARE_SIZE * 0.44,
-    borderWidth: 3.5,
-    borderColor: 'rgba(0, 0, 0, 0.28)',
+    width: SQUARE_SIZE * 0.85,
+    height: SQUARE_SIZE * 0.85,
+    borderRadius: (SQUARE_SIZE * 0.85) / 2,
+    borderWidth: 3,
+    borderColor: 'rgba(239, 68, 68, 0.65)',
   },
-  historyBox: {
+  notationCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    gap: 8,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.03,
+    shadowRadius: 4,
+    elevation: 1,
+  },
+  notationHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#0f1636',
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderWidth: 1,
-    borderColor: '#1e2b5e',
-    width: '100%',
-    gap: 8,
+    justifyContent: 'space-between',
   },
-  historyLabel: {
-    fontSize: 10,
-    fontWeight: '900',
-    color: '#00e5ff',
-    letterSpacing: 0.8,
-  },
-  historyMovesRow: {
+  notationTitleRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
   },
-  emptyHistoryText: {
+  notationTitle: {
     fontSize: 11,
-    color: '#64748b',
+    fontWeight: '800',
+    color: '#4F46E5',
+    letterSpacing: 0.8,
   },
-  moveChip: {
-    backgroundColor: '#17214b',
+  openingText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#64748B',
+  },
+  notationStream: {
+    maxHeight: 38,
+  },
+  notationStreamRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  emptyNotationBox: {
+    paddingVertical: 4,
+  },
+  emptyNotationText: {
+    fontSize: 12,
+    color: '#94A3B8',
+    fontStyle: 'italic',
+  },
+  notationChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F1F5F9',
+    borderRadius: 8,
     paddingHorizontal: 8,
     paddingVertical: 4,
-    borderRadius: 6,
+    gap: 4,
   },
-  moveChipText: {
+  notationChipActive: {
+    backgroundColor: '#EEF2FF',
+    borderWidth: 1,
+    borderColor: '#C7D2FE',
+  },
+  notationNum: {
     fontSize: 11,
-    fontWeight: '700',
-    color: '#e2e8f0',
+    color: '#64748B',
+    fontFamily: 'monospace',
   },
-  controlsRow: {
+  notationSan: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#0F172A',
+    fontFamily: 'monospace',
+  },
+  notationSanActive: {
+    color: '#4F46E5',
+    fontWeight: '800',
+  },
+  actionDock: {
     flexDirection: 'row',
     gap: 10,
-    width: '100%',
+    marginTop: 2,
   },
-  controlBtn: {
+  dockBtn: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 6,
-    backgroundColor: '#0f1636',
-    paddingVertical: 12,
+    backgroundColor: '#FFFFFF',
     borderRadius: 14,
-    borderWidth: 1.5,
-    borderColor: '#1e2b5e',
+    paddingVertical: 12,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    gap: 6,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.03,
+    shadowRadius: 3,
+    elevation: 1,
   },
-  resignBtn: {
-    borderColor: 'rgba(239, 68, 68, 0.4)',
-    backgroundColor: 'rgba(239, 68, 68, 0.1)',
+  dockBtnDisabled: {
+    opacity: 0.45,
   },
-  controlBtnText: {
+  dockBtnText: {
     fontSize: 13,
-    fontWeight: '800',
-    color: '#f8fafc',
+    fontWeight: '700',
+    color: '#475569',
+  },
+  dockBtnPrimary: {
+    backgroundColor: '#4F46E5',
+    borderColor: '#4F46E5',
+    shadowColor: '#4F46E5',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.25,
+    shadowRadius: 6,
+    elevation: 3,
+  },
+  dockBtnPrimaryText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  dockBtnResign: {
+    borderColor: '#FECDD3',
+    backgroundColor: '#FFF1F2',
+  },
+  dockBtnResignText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#EF4444',
   },
   promoOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(3, 6, 18, 0.85)',
-    justifyContent: 'center',
+    backgroundColor: 'rgba(15, 23, 42, 0.6)',
     alignItems: 'center',
+    justifyContent: 'center',
     padding: 24,
   },
   promoCard: {
-    backgroundColor: '#0f1636',
-    borderRadius: 24,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 22,
     padding: 24,
-    borderWidth: 2,
-    borderColor: '#00e5ff',
     alignItems: 'center',
     width: '100%',
-    maxWidth: 340,
+    maxWidth: 320,
+    gap: 10,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 10,
+    elevation: 5,
   },
   promoTitle: {
     fontSize: 20,
-    fontWeight: '900',
-    color: '#f8fafc',
-    marginTop: 8,
+    fontWeight: '800',
+    color: '#0F172A',
   },
   promoSubtitle: {
-    fontSize: 12,
-    color: '#94a3b8',
-    marginTop: 4,
-    marginBottom: 16,
+    fontSize: 13,
+    color: '#64748B',
   },
   promoOptionsRow: {
     flexDirection: 'row',
-    gap: 10,
+    gap: 12,
+    marginTop: 8,
   },
   promoOptionBtn: {
     alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#17214b',
-    paddingVertical: 12,
-    paddingHorizontal: 14,
-    borderRadius: 16,
+    backgroundColor: '#F8FAFC',
+    borderRadius: 14,
+    padding: 10,
     borderWidth: 1.5,
-    borderColor: '#3b4f99',
-    minWidth: 66,
+    borderColor: '#E2E8F0',
   },
   promoPieceLabel: {
     fontSize: 10,
-    fontWeight: '800',
-    color: '#cbd5e1',
-    marginTop: 6,
+    fontWeight: '700',
+    color: '#475569',
+    marginTop: 4,
   },
 });

@@ -37,13 +37,13 @@ export const BottomNavBar: React.FC = () => {
             <View style={[styles.iconWrap, isActive && styles.iconWrapActive]}>
               <IconComp
                 size={20}
-                color={isActive ? '#00e5ff' : isLight ? '#475569' : '#64748b'}
+                color={isActive ? '#4F46E5' : '#64748B'}
               />
             </View>
             <Text
               style={[
                 styles.tabLabel,
-                isLight && styles.tabLabelLight,
+                styles.tabLabelLight,
                 isActive && styles.tabLabelActive,
               ]}
             >
@@ -61,15 +61,20 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-around',
-    backgroundColor: '#090e26',
+    backgroundColor: '#FFFFFF',
     borderTopWidth: 1.5,
-    borderTopColor: '#1e2b5e',
+    borderTopColor: '#E2E8F0',
     paddingVertical: 8,
     paddingHorizontal: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 6,
+    elevation: 8,
   },
   containerLight: {
-    backgroundColor: '#ffffff',
-    borderTopColor: '#e2e8f0',
+    backgroundColor: '#FFFFFF',
+    borderTopColor: '#E2E8F0',
   },
   tabButton: {
     flex: 1,
@@ -85,18 +90,18 @@ const styles = StyleSheet.create({
     borderRadius: 12,
   },
   iconWrapActive: {
-    backgroundColor: 'rgba(0, 229, 255, 0.14)',
+    backgroundColor: 'rgba(79, 70, 229, 0.12)',
   },
   tabLabel: {
     fontSize: 10,
     fontWeight: '700',
-    color: '#64748b',
+    color: '#64748B',
   },
   tabLabelLight: {
-    color: '#475569',
+    color: '#64748B',
   },
   tabLabelActive: {
-    color: '#00e5ff',
+    color: '#4F46E5',
     fontWeight: '900',
   },
 });

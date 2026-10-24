@@ -102,7 +102,7 @@ export const usePlayerStore = create<PlayerStoreState>((set, get) => ({
   avatarUrl: AVATAR_OPTIONS[0],
   email: null,
   coins: 1250,
-  theme: 'dark',
+  theme: 'light',
   soundEnabled: true,
   hapticsEnabled: true,
   isRegistered: false,

@@ -14,7 +14,6 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import {
   Play,
-  LogIn,
   Settings as SettingsIcon,
   X,
   Cpu,
@@ -23,69 +22,65 @@ import {
   Crown,
   Dices,
   Grid,
-  Sun,
-  Moon,
-  Coins,
-  Swords,
+  Volume2,
+  VolumeX,
+  Flame,
+  Clock,
+  Trophy,
+  Gift,
+  ArrowRight,
   Shield,
+  Zap,
+  Gauge,
+  Sparkles,
 } from 'lucide-react-native';
 import { usePlayerStore } from '../store/playerStore';
 import { useGameStore } from '../store/gameStore';
 import { useSocket } from '../hooks/useSocket';
-import { GameButton } from '../components/GameButton';
 import { BottomNavBar } from '../components/BottomNavBar';
 import { BotDifficulty, GameType } from '../../shared/types';
 
-interface GameCardMeta {
+interface GameItem {
   id: GameType;
   title: string;
   subtitle: string;
-  badge: string;
+  tag: string;
+  tagType: 'trending' | 'ranked' | 'jackpot';
   playersTag: string;
-  description: string;
-  gradient: [string, string, string];
-  accentColor: string;
-  previewTokens: string[];
-  colorDots?: string[];
+  playerCount: string;
+  image: string;
 }
 
-const GAME_CARDS: GameCardMeta[] = [
+const FEATURED_GAMES: GameItem[] = [
   {
-    id: 'bingo',
-    title: 'BINGO BATTLE',
-    subtitle: '5x5 Tactical Grid',
-    badge: 'CLASSIC & PVP',
-    playersTag: '1-4 Players',
-    description:
-      'Arrange secret numbers 1 to 25, call numbers in real-time, and complete 5 B-I-N-G-O lines before your opponent.',
-    gradient: ['#3b0764', '#311078', '#1e1b4b'],
-    accentColor: '#00e5ff',
-    previewTokens: ['B', 'I', 'N', 'G', 'O'],
+    id: 'ludo',
+    title: 'Ludo Kingpin',
+    subtitle: 'Fast-paced classic dice roller with tactical boost traps and power dice.',
+    tag: 'Trending',
+    tagType: 'trending',
+    playersTag: '4 Players',
+    playerCount: '14.2k playing',
+    image: 'https://images.unsplash.com/photo-1610890716171-6b1bb98ffd09?w=500',
   },
   {
     id: 'chess',
-    title: 'ROYAL CHESS',
-    subtitle: 'Grandmaster 8x8 Board',
-    badge: 'FIDE RULES',
-    playersTag: '1-2 Players',
-    description:
-      'Standard FIDE rules with castling, en passant, pawn promotion, move history, and solo practice or live 1v1 rooms.',
-    gradient: ['#064e3b', '#065f46', '#0f172a'],
-    accentColor: '#00ff87',
-    previewTokens: ['K', 'Q', 'R', 'B', 'N'],
+    title: 'Chess Grandmaster',
+    subtitle: '1v1 tactical duel with real-time Elo match analysis and blitz clock modes.',
+    tag: 'Ranked Season 4',
+    tagType: 'ranked',
+    playersTag: '3m Blitz',
+    playerCount: '8.6k playing',
+    image: 'https://images.unsplash.com/photo-1529699211952-734e80c4d42b?w=500',
   },
   {
-    id: 'ludo',
-    title: 'CLASSIC LUDO',
-    subtitle: '4-Color Dice Board',
-    badge: '2-4 PLAYERS',
-    playersTag: '1-4 Players',
-    description:
-      'Roll a 6 to deploy tokens, capture opponent pieces, protect star safe squares, and race all 4 tokens home.',
-    gradient: ['#7c2d12', '#9a3412', '#1e1b4b'],
-    accentColor: '#ffd700',
-    previewTokens: ['R', 'G', 'Y', 'B'],
-    colorDots: ['#ef4444', '#10b981', '#f59e0b', '#3b82f6'],
+    id: 'bingo',
+    title: 'Bingo Blitz Royale',
+    subtitle: '75-ball live multiplayer frenzy with speed-dabbing and global progressive pots.',
+    tag: 'Jackpot 50k',
+    tagType: 'jackpot',
+    playersTag: '75-Ball',
+    playerCount: '19.8k playing',
+    image: 'https://images.unsplash.com/photo-1518609878373-06d740f60d8b?w=500',
   },
 ];
 
@@ -97,492 +92,413 @@ export default function HomeScreen() {
   const username = usePlayerStore((s) => s.username);
   const avatarUrl = usePlayerStore((s) => s.avatarUrl);
   const coins = usePlayerStore((s) => s.coins);
-  const stats = usePlayerStore((s) => s.stats);
-  const theme = usePlayerStore((s) => s.theme);
-  const toggleTheme = usePlayerStore((s) => s.toggleTheme);
-  const hydrateFromStorage = usePlayerStore((s) => s.hydrateFromStorage);
+  const soundEnabled = usePlayerStore((s) => s.soundEnabled);
+  const setSoundEnabled = usePlayerStore((s) => s.setSoundEnabled);
 
-  const isConnected = useGameStore((s) => s.isConnected);
   const selectedGame = useGameStore((s) => s.selectedGame);
-  const botDifficulty = useGameStore((s) => s.botDifficulty);
-  const ludoBotCount = useGameStore((s) => s.ludoBotCount);
   const setSelectedGame = useGameStore((s) => s.setSelectedGame);
   const setGameMode = useGameStore((s) => s.setGameMode);
   const setBotDifficulty = useGameStore((s) => s.setBotDifficulty);
   const setLudoBotCount = useGameStore((s) => s.setLudoBotCount);
-  const startBotBingoMatch = useGameStore((s) => s.startBotBingoMatch);
 
   const [modeModalVisible, setModeModalVisible] = useState(false);
-  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const [activeGameId, setActiveGameId] = useState<GameType>('ludo');
+  const [claimedDaily, setClaimedDaily] = useState(false);
+
+  const pulseAnim = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
-    hydrateFromStorage();
-    Animated.timing(fadeAnim, {
-      toValue: 1,
-      duration: 380,
-      useNativeDriver: true,
-    }).start();
-  }, []);
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulseAnim, {
+          toValue: 1.05,
+          duration: 1200,
+          useNativeDriver: true,
+        }),
+        Animated.timing(pulseAnim, {
+          toValue: 1,
+          duration: 1200,
+          useNativeDriver: true,
+        }),
+      ])
+    ).start();
+  }, [pulseAnim]);
 
-  const isLight = theme === 'light';
-
-  const handleSelectGameCard = (game: GameType) => {
-    setSelectedGame(game);
+  const handleOpenGameModal = (gameId: GameType) => {
+    setActiveGameId(gameId);
+    setSelectedGame(gameId);
     setModeModalVisible(true);
   };
 
-  const handleStartBotGame = () => {
+  const handlePlaySolo = (diff: BotDifficulty = 'medium', botCount: 1 | 2 | 3 = 3) => {
     setModeModalVisible(false);
+    setSelectedGame(activeGameId);
     setGameMode('bot');
+    setBotDifficulty(diff);
+    setLudoBotCount(botCount);
 
-    if (selectedGame === 'bingo') {
-      startBotBingoMatch(playerId, username, avatarUrl);
-      router.push('/board-setup');
-    } else if (selectedGame === 'chess') {
+    if (activeGameId === 'chess') {
       router.push('/games/chess');
-    } else if (selectedGame === 'ludo') {
+    } else if (activeGameId === 'ludo') {
       router.push('/games/ludo');
+    } else {
+      router.push('/board-setup');
     }
   };
 
   const handleCreateOnlineRoom = () => {
     setModeModalVisible(false);
+    setSelectedGame(activeGameId);
     setGameMode('online');
     router.push('/create-room');
   };
 
-  const handlePublicMatchmaking = () => {
-    setModeModalVisible(false);
-    setGameMode('online');
-    router.push('/matchmaking');
-  };
-
   const handleJoinOnlineRoom = () => {
     setModeModalVisible(false);
+    setSelectedGame(activeGameId);
     setGameMode('online');
     router.push('/join-room');
   };
 
-  const handleInviteFriends = () => {
+  const handlePublicMatchmaking = () => {
     setModeModalVisible(false);
+    setSelectedGame(activeGameId);
     setGameMode('online');
-    router.push('/friends');
-  };
-
-  const activeGameMeta =
-    GAME_CARDS.find((g) => g.id === selectedGame) || GAME_CARDS[0];
-
-  const renderGameIcon = (id: GameType, color: string) => {
-    if (id === 'bingo') return <Grid size={13} color={color} />;
-    if (id === 'chess') return <Crown size={13} color={color} />;
-    return <Dices size={13} color={color} />;
+    router.push('/matchmaking');
   };
 
   return (
-    <SafeAreaView style={[styles.safeArea, isLight && styles.safeAreaLight]}>
+    <SafeAreaView style={styles.safeArea}>
       <ScrollView
         contentContainerStyle={styles.container}
         showsVerticalScrollIndicator={false}
       >
-        {/* Top Bar: App Logo/Name, Profile, Coins, Theme & Settings */}
-        <View style={styles.topBar}>
-          <TouchableOpacity
-            activeOpacity={0.85}
-            style={[styles.profileBadge, isLight && styles.cardLight]}
-            onPress={() => router.push('/profile')}
-          >
-            <View style={styles.avatarRing}>
-              <Image source={{ uri: avatarUrl }} style={styles.profileAvatar} />
-              <View style={styles.levelPill}>
-                <Text style={styles.levelPillText}>PRO</Text>
-              </View>
+        {/* Header: GameZone Brand, Coins Pill, User Profile matching Stitch */}
+        <View style={styles.topHeader}>
+          <View style={styles.brandGroup}>
+            <View style={styles.brandIconBox}>
+              <Zap size={18} color="#FFFFFF" />
             </View>
-            <View style={styles.profileTextCol}>
-              <View style={styles.greetingRow}>
-                <Shield size={11} color="#00e5ff" />
-                <Text style={styles.greeting}>GAME HUB</Text>
-              </View>
-              <Text
-                style={[styles.playerName, isLight && styles.textDark]}
-                numberOfLines={1}
-              >
-                {username}
-              </Text>
-            </View>
-          </TouchableOpacity>
+            <Text style={styles.brandTitle}>GameZone</Text>
+          </View>
 
-          <View style={styles.topRightActions}>
-            <View style={styles.coinsPill}>
-              <Coins size={15} color="#ffd700" />
-              <Text style={styles.coinsText}>{coins}</Text>
+          <View style={styles.headerRight}>
+            <View style={styles.currencyBadge}>
+              <View style={styles.coinDot}>
+                <Text style={styles.coinSymbol}>$</Text>
+              </View>
+              <Text style={styles.currencyAmount}>{coins.toLocaleString()}</Text>
+              <Text style={styles.currencyUnit}>GC</Text>
             </View>
 
             <TouchableOpacity
-              activeOpacity={0.8}
-              style={[styles.iconCircle, isLight && styles.cardLight]}
-              onPress={toggleTheme}
+              activeOpacity={0.85}
+              style={styles.avatarButton}
+              onPress={() => router.push('/profile')}
             >
-              {isLight ? (
-                <Moon size={18} color="#334155" />
+              <Image source={{ uri: avatarUrl }} style={styles.avatarImg} />
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        {/* Hero Banner: "LEVEL UP YOUR PLAY" matching Stitch */}
+        <LinearGradient
+          colors={['#EEF2FF', '#ECFEFF', '#F8FAFC']}
+          style={styles.heroSection}
+        >
+          {/* Live Badge Pill */}
+          <View style={styles.liveBadgePill}>
+            <Animated.View
+              style={[styles.liveDotPulse, { transform: [{ scale: pulseAnim }] }]}
+            />
+            <Text style={styles.liveBadgeText}>SEASON 4 NOW LIVE</Text>
+          </View>
+
+          {/* Hero Typography */}
+          <Text style={styles.heroHeadline}>LEVEL UP YOUR PLAY</Text>
+          <Text style={styles.heroDescription}>
+            Your favorite games, all in one place. Jump straight into competitive arenas or casual matches in seconds.
+          </Text>
+
+          {/* Primary Action Buttons */}
+          <View style={styles.heroActionRow}>
+            <TouchableOpacity
+              activeOpacity={0.88}
+              style={styles.exploreButton}
+              onPress={() => handleOpenGameModal('ludo')}
+            >
+              <Text style={styles.exploreButtonText}>Explore Games</Text>
+              <ArrowRight size={18} color="#FFFFFF" />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              activeOpacity={0.8}
+              style={styles.soundButton}
+              onPress={() => setSoundEnabled(!soundEnabled)}
+            >
+              {soundEnabled ? (
+                <Volume2 size={20} color="#4F46E5" />
               ) : (
-                <Sun size={18} color="#ffd700" />
+                <VolumeX size={20} color="#64748B" />
               )}
             </TouchableOpacity>
+          </View>
+        </LinearGradient>
 
-            <TouchableOpacity
-              activeOpacity={0.8}
-              style={[styles.iconCircle, isLight && styles.cardLight]}
-              onPress={() => router.push('/settings')}
-            >
-              <SettingsIcon size={18} color={isLight ? '#334155' : '#cbd5e1'} />
-            </TouchableOpacity>
-          </View>
-        </View>
-
-        {/* Player Quick Summary Strip */}
-        <View style={[styles.statsBanner, isLight && styles.cardLight]}>
-          <View style={styles.statCell}>
-            <Text style={styles.statValue}>{stats.played}</Text>
-            <Text style={styles.statLabel}>MATCHES</Text>
-          </View>
-          <View style={styles.statDivider} />
-          <View style={styles.statCell}>
-            <Text style={[styles.statValue, { color: '#00ff87' }]}>{stats.wins}</Text>
-            <Text style={styles.statLabel}>VICTORIES</Text>
-          </View>
-          <View style={styles.statDivider} />
-          <View style={styles.statCell}>
-            <Text style={[styles.statValue, { color: '#00e5ff' }]}>
-              {stats.played > 0
-                ? `${Math.round((stats.wins / stats.played) * 100)}%`
-                : '0%'}
-            </Text>
-            <Text style={styles.statLabel}>WIN RATE</Text>
-          </View>
-          <View style={styles.statDivider} />
-          <TouchableOpacity
-            style={styles.statCell}
-            onPress={() => router.push('/settings')}
-          >
-            <View style={styles.onlineRow}>
-              <View
-                style={[
-                  styles.netDot,
-                  { backgroundColor: isConnected ? '#10b981' : '#f59e0b' },
-                ]}
-              />
-              <Text
-                style={[
-                  styles.statValue,
-                  {
-                    fontSize: 13,
-                    color: isConnected ? '#10b981' : '#f59e0b',
-                  },
-                ]}
-              >
-                {isConnected ? 'ONLINE' : 'LOCAL'}
-              </Text>
+        {/* Quick Telemetry Stats Ribbon matching Stitch */}
+        <View style={styles.telemetryCard}>
+          <View style={styles.telemetryItem}>
+            <View style={styles.telemetryIconRow}>
+              <Users size={16} color="#0891B2" />
+              <Text style={styles.telemetryNumber}>2.4M</Text>
             </View>
-            <Text style={styles.statLabel}>SERVER</Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* Section Header */}
-        <View style={styles.sectionHeaderRow}>
-          <View style={styles.sectionTitleLeft}>
-            <Swords size={16} color="#00e5ff" />
-            <Text style={[styles.sectionTitle, isLight && styles.textDark]}>
-              SELECT A GAME
-            </Text>
+            <Text style={styles.telemetryLabel}>Active Players</Text>
           </View>
-          <TouchableOpacity
-            style={styles.quickJoinPill}
-            onPress={() => router.push('/join-room')}
-          >
-            <LogIn size={13} color="#00e5ff" />
-            <Text style={styles.quickJoinText}>Join with Code</Text>
-          </TouchableOpacity>
+
+          <View style={styles.telemetryDivider} />
+
+          <View style={styles.telemetryItem}>
+            <View style={styles.telemetryIconRow}>
+              <Zap size={16} color="#4F46E5" />
+              <Text style={styles.telemetryNumber}>99.9%</Text>
+            </View>
+            <Text style={styles.telemetryLabel}>Uptime SLA</Text>
+          </View>
+
+          <View style={styles.telemetryDivider} />
+
+          <View style={styles.telemetryItem}>
+            <View style={styles.telemetryIconRow}>
+              <Gauge size={16} color="#4F46E5" />
+              <Text style={styles.telemetryNumber}>&lt;2s</Text>
+            </View>
+            <Text style={styles.telemetryLabel}>Matchmaking</Text>
+          </View>
         </View>
 
-        {/* Three Game Cards: 1. Bingo, 2. Chess, 3. Ludo */}
-        <Animated.View style={{ opacity: fadeAnim, gap: 14 }}>
-          {GAME_CARDS.map((game) => (
-            <TouchableOpacity
-              key={game.id}
-              activeOpacity={0.88}
-              onPress={() => handleSelectGameCard(game.id)}
-              style={styles.gameCardTouchable}
-            >
-              <LinearGradient
-                colors={game.gradient}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-                style={[
-                  styles.gameCard,
-                  { borderColor: `${game.accentColor}66` },
-                ]}
+        {/* Daily Rewards & Live Tournament Bento matching Stitch */}
+        <View style={styles.bentoSection}>
+          {/* Live Tournament Banner */}
+          <LinearGradient
+            colors={['#FFFFFF', '#EEF2FF', '#ECFEFF']}
+            style={styles.tournamentCard}
+          >
+            <View style={styles.tournamentHeader}>
+              <View style={styles.firePill}>
+                <Flame size={13} color="#D97706" />
+                <Text style={styles.firePillText}>TOURNAMENT ENDS IN 04:12:49</Text>
+              </View>
+              <Text style={styles.tournamentRound}>Round 3/5</Text>
+            </View>
+
+            <View style={styles.tournamentBottomRow}>
+              <View>
+                <Text style={styles.tournamentSubtitle}>Grand Arena Championship</Text>
+                <View style={styles.prizeRow}>
+                  <Trophy size={18} color="#D97706" />
+                  <Text style={styles.prizeAmount}>100,000</Text>
+                  <Text style={styles.prizeUnit}>G-Coins</Text>
+                </View>
+              </View>
+
+              <TouchableOpacity
+                activeOpacity={0.85}
+                style={styles.joinFreeBtn}
+                onPress={() => handleOpenGameModal('chess')}
               >
-                <View style={styles.cardTopRow}>
-                  <View
-                    style={[
-                      styles.cardBadge,
-                      {
-                        backgroundColor: `${game.accentColor}20`,
-                        borderColor: `${game.accentColor}55`,
-                      },
-                    ]}
-                  >
-                    {renderGameIcon(game.id, game.accentColor)}
-                    <Text
-                      style={[styles.cardBadgeText, { color: game.accentColor }]}
-                    >
-                      {game.badge}
-                    </Text>
-                  </View>
+                <Text style={styles.joinFreeBtnText}>Join Free</Text>
+              </TouchableOpacity>
+            </View>
+          </LinearGradient>
 
-                  <View style={styles.playersPill}>
-                    <Users size={11} color="#e2e8f0" />
-                    <Text style={styles.playersPillText}>{game.playersTag}</Text>
+          {/* Daily Chest Tile */}
+          <View style={styles.dailyRewardCard}>
+            <View style={styles.dailyRewardLeft}>
+              <View style={styles.chestIconBox}>
+                <Gift size={24} color="#4F46E5" />
+              </View>
+              <View>
+                <View style={styles.chestTitleRow}>
+                  <Text style={styles.chestTitle}>Daily Chest</Text>
+                  <View style={styles.readyTag}>
+                    <Text style={styles.readyTagText}>READY</Text>
                   </View>
                 </View>
+                <Text style={styles.chestSubtitle}>Day 6 Streak • +750 G-Coins inside</Text>
+              </View>
+            </View>
 
-                <View style={styles.cardMainRow}>
-                  <View style={styles.cardInfoCol}>
-                    <Text style={styles.gameCardTitle}>{game.title}</Text>
-                    <Text
-                      style={[
-                        styles.gameCardSubtitle,
-                        { color: game.accentColor },
-                      ]}
-                    >
-                      {game.subtitle}
-                    </Text>
-                    <Text style={styles.gameCardDesc}>{game.description}</Text>
-                  </View>
-                </View>
-
-                {/* Preview Orbs + Play CTA Row */}
-                <View style={styles.cardFooterRow}>
-                  <View style={styles.previewTokensRow}>
-                    {game.previewTokens.map((tok, i) => (
-                      <View
-                        key={i}
-                        style={[
-                          styles.previewOrb,
-                          {
-                            borderColor: game.colorDots
-                              ? game.colorDots[i]
-                              : `${game.accentColor}55`,
-                          },
-                        ]}
-                      >
-                        {game.colorDots ? (
-                          <View
-                            style={{
-                              width: 14,
-                              height: 14,
-                              borderRadius: 7,
-                              backgroundColor: game.colorDots[i],
-                            }}
-                          />
-                        ) : (
-                          <Text style={styles.previewOrbText}>{tok}</Text>
-                        )}
-                      </View>
-                    ))}
-                  </View>
-
-                  <View
-                    style={[
-                      styles.playBtnPill,
-                      { backgroundColor: game.accentColor },
-                    ]}
-                  >
-                    <Play size={14} color="#050816" fill="#050816" />
-                    <Text style={styles.playBtnPillText}>PLAY</Text>
-                  </View>
-                </View>
-              </LinearGradient>
+            <TouchableOpacity
+              activeOpacity={0.85}
+              style={[styles.claimBtn, claimedDaily && styles.claimedBtn]}
+              onPress={() => setClaimedDaily(true)}
+              disabled={claimedDaily}
+            >
+              <Text style={[styles.claimBtnText, claimedDaily && styles.claimedBtnText]}>
+                {claimedDaily ? 'Claimed ✓' : 'Claim'}
+              </Text>
             </TouchableOpacity>
-          ))}
-        </Animated.View>
+          </View>
+        </View>
+
+        {/* Featured Classics Section matching Stitch */}
+        <View style={styles.classicsSection}>
+          <View style={styles.classicsHeader}>
+            <View>
+              <Text style={styles.classicsTitle}>Featured Classics</Text>
+              <Text style={styles.classicsSubtitle}>Instant queue multiplayer battlegrounds</Text>
+            </View>
+          </View>
+
+          {/* Game Cards Stack */}
+          <View style={styles.gamesStack}>
+            {FEATURED_GAMES.map((item) => (
+              <View key={item.id} style={styles.gameCard}>
+                {/* Game Banner Image */}
+                <View style={styles.gameImageWrap}>
+                  <Image source={{ uri: item.image }} style={styles.gameImage} />
+                  <LinearGradient
+                    colors={['transparent', 'rgba(15, 23, 42, 0.7)']}
+                    style={styles.imageGradientOverlay}
+                  />
+
+                  {/* Top Tags */}
+                  <View style={styles.tagLeft}>
+                    {item.tagType === 'trending' ? (
+                      <Flame size={13} color="#EF4444" />
+                    ) : item.tagType === 'ranked' ? (
+                      <Trophy size={13} color="#0891B2" />
+                    ) : (
+                      <Sparkles size={13} color="#D97706" />
+                    )}
+                    <Text style={styles.tagLeftText}>{item.tag}</Text>
+                  </View>
+
+                  <View style={styles.tagRight}>
+                    <Text style={styles.tagRightText}>{item.playersTag}</Text>
+                  </View>
+                </View>
+
+                {/* Game Info */}
+                <View style={styles.gameInfoRow}>
+                  <Text style={styles.gameCardTitle}>{item.title}</Text>
+                  <Text style={styles.gameCardDescription}>{item.subtitle}</Text>
+                </View>
+
+                {/* Footer Bar: Online Count & Quick Play */}
+                <View style={styles.gameCardFooter}>
+                  <View style={styles.onlineStatusRow}>
+                    <View style={styles.onlineDot} />
+                    <Text style={styles.onlineCountText}>{item.playerCount}</Text>
+                  </View>
+
+                  <TouchableOpacity
+                    activeOpacity={0.85}
+                    style={styles.quickPlayBtn}
+                    onPress={() => handleOpenGameModal(item.id)}
+                  >
+                    <Play size={16} color="#FFFFFF" fill="#FFFFFF" />
+                    <Text style={styles.quickPlayText}>Quick Play</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            ))}
+          </View>
+        </View>
       </ScrollView>
 
-      {/* Bottom Navigation Bar */}
-      <BottomNavBar />
-
-      {/* Game Selection Modal (Single Player / Play Online / Difficulty) */}
+      {/* Mode Picker Modal with GameZone Light Styling */}
       <Modal
         visible={modeModalVisible}
-        animationType="slide"
         transparent={true}
+        animationType="fade"
         onRequestClose={() => setModeModalVisible(false)}
       >
         <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, isLight && styles.cardLight]}>
+          <View style={styles.modalCard}>
             <View style={styles.modalHeader}>
               <View>
-                <Text
-                  style={[
-                    styles.modalGameTag,
-                    { color: activeGameMeta.accentColor },
-                  ]}
-                >
-                  {activeGameMeta.subtitle.toUpperCase()}
+                <Text style={styles.modalTitle}>
+                  {activeGameId === 'ludo'
+                    ? 'Ludo Kingpin'
+                    : activeGameId === 'chess'
+                    ? 'Chess Grandmaster'
+                    : 'Bingo Blitz Royale'}
                 </Text>
-                <Text style={[styles.modalTitle, isLight && styles.textDark]}>
-                  {activeGameMeta.title}
-                </Text>
+                <Text style={styles.modalSubtitle}>Choose how you want to play</Text>
               </View>
               <TouchableOpacity
-                style={styles.modalCloseBtn}
                 onPress={() => setModeModalVisible(false)}
+                style={styles.modalCloseBtn}
               >
-                <X size={20} color="#94a3b8" />
+                <X size={20} color="#64748B" />
               </TouchableOpacity>
             </View>
 
-            <ScrollView showsVerticalScrollIndicator={false}>
-              {/* 1. SINGLE PLAYER SECTION */}
-              <View style={styles.modeSectionCard}>
-                <View style={styles.modeHeaderRow}>
-                  <View style={styles.modeIconBadge}>
-                    <Cpu size={20} color="#00ff87" />
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.modeTitle}>Single Player</Text>
-                    <Text style={styles.modeSubtitle}>
-                      Instant offline match, no internet required
-                    </Text>
-                  </View>
-                </View>
-
-                <Text style={styles.selectorLabel}>DIFFICULTY LEVEL</Text>
-                <View style={styles.difficultyRow}>
-                  {(['easy', 'medium', 'hard'] as BotDifficulty[]).map((diff) => {
-                    const active = botDifficulty === diff;
-                    return (
-                      <TouchableOpacity
-                        key={diff}
-                        activeOpacity={0.8}
-                        onPress={() => setBotDifficulty(diff)}
-                        style={[
-                          styles.diffPill,
-                          active && styles.diffPillActive,
-                        ]}
-                      >
-                        <Text
-                          style={[
-                            styles.diffPillText,
-                            active && styles.diffPillTextActive,
-                          ]}
-                        >
-                          {diff.toUpperCase()}
-                        </Text>
-                      </TouchableOpacity>
-                    );
-                  })}
-                </View>
-
-                {selectedGame === 'ludo' && (
-                  <>
-                    <Text style={[styles.selectorLabel, { marginTop: 10 }]}>
-                      OPPONENT COUNT
-                    </Text>
-                    <View style={styles.difficultyRow}>
-                      {([1, 2, 3] as Array<1 | 2 | 3>).map((cnt) => {
-                        const active = ludoBotCount === cnt;
-                        return (
-                          <TouchableOpacity
-                            key={cnt}
-                            activeOpacity={0.8}
-                            onPress={() => setLudoBotCount(cnt)}
-                            style={[
-                              styles.diffPill,
-                              active && styles.diffPillActive,
-                            ]}
-                          >
-                            <Text
-                              style={[
-                                styles.diffPillText,
-                                active && styles.diffPillTextActive,
-                              ]}
-                            >
-                              1 VS {cnt}
-                            </Text>
-                          </TouchableOpacity>
-                        );
-                      })}
-                    </View>
-                  </>
-                )}
-
-                <GameButton
-                  title={`Play Single Player (${
-                    botDifficulty.charAt(0).toUpperCase() + botDifficulty.slice(1)
-                  })`}
-                  variant="success"
-                  onPress={handleStartBotGame}
-                  icon={<Play size={18} color="#ffffff" />}
-                  style={{ marginTop: 12 }}
-                />
+            {/* Mode Option 1: Solo vs AI Practice */}
+            <TouchableOpacity
+              activeOpacity={0.85}
+              style={styles.modeOption}
+              onPress={() => handlePlaySolo('medium', 3)}
+            >
+              <View style={[styles.modeIconBox, { backgroundColor: '#EEF2FF' }]}>
+                <Cpu size={22} color="#4F46E5" />
               </View>
-
-              {/* 2. PLAY ONLINE MULTIPLAYER SECTION */}
-              <View style={[styles.modeSectionCard, styles.onlineSectionCard]}>
-                <View style={styles.modeHeaderRow}>
-                  <View
-                    style={[
-                      styles.modeIconBadge,
-                      { backgroundColor: 'rgba(0, 229, 255, 0.14)' },
-                    ]}
-                  >
-                    <Globe size={20} color="#00e5ff" />
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.modeTitle}>Online Multiplayer</Text>
-                    <Text style={styles.modeSubtitle}>
-                      Real-time rooms with private 6-character codes
-                    </Text>
-                  </View>
-                </View>
-
-                <GameButton
-                  title="Public Matchmaking (Find Rival)"
-                  variant="outline"
-                  onPress={handlePublicMatchmaking}
-                  icon={<Swords size={18} color="#00ff87" />}
-                  style={{ marginBottom: 10 }}
-                />
-
-                <GameButton
-                  title="Create Private Room"
-                  variant="primary"
-                  onPress={handleCreateOnlineRoom}
-                  icon={<Crown size={18} color="#ffffff" />}
-                />
-
-                <View style={styles.onlineSubRow}>
-                  <GameButton
-                    title="Join with Code"
-                    variant="outline"
-                    onPress={handleJoinOnlineRoom}
-                    icon={<LogIn size={16} color="#00e5ff" />}
-                    style={{ flex: 1 }}
-                  />
-                  <GameButton
-                    title="Invite Friends"
-                    variant="outline"
-                    onPress={handleInviteFriends}
-                    icon={<Users size={16} color="#a5b4fc" />}
-                    style={{ flex: 1 }}
-                  />
-                </View>
+              <View style={styles.modeTextCol}>
+                <Text style={styles.modeOptionTitle}>Solo Practice (Computer)</Text>
+                <Text style={styles.modeOptionDesc}>Sub-200ms smart AI with adjustable difficulty</Text>
               </View>
-            </ScrollView>
+            </TouchableOpacity>
+
+            {/* Mode Option 2: Public Matchmaking */}
+            <TouchableOpacity
+              activeOpacity={0.85}
+              style={styles.modeOption}
+              onPress={handlePublicMatchmaking}
+            >
+              <View style={[styles.modeIconBox, { backgroundColor: '#ECFEFF' }]}>
+                <Globe size={22} color="#0891B2" />
+              </View>
+              <View style={styles.modeTextCol}>
+                <Text style={styles.modeOptionTitle}>Public Matchmaking (Find Rival)</Text>
+                <Text style={styles.modeOptionDesc}>Live search radar matching you with active players</Text>
+              </View>
+            </TouchableOpacity>
+
+            {/* Mode Option 3: Create Private Room */}
+            <TouchableOpacity
+              activeOpacity={0.85}
+              style={styles.modeOption}
+              onPress={handleCreateOnlineRoom}
+            >
+              <View style={[styles.modeIconBox, { backgroundColor: '#FEF3C7' }]}>
+                <Crown size={22} color="#D97706" />
+              </View>
+              <View style={styles.modeTextCol}>
+                <Text style={styles.modeOptionTitle}>Create Private Room</Text>
+                <Text style={styles.modeOptionDesc}>Get a 6-character room code to invite friends</Text>
+              </View>
+            </TouchableOpacity>
+
+            {/* Mode Option 4: Join by Room Code */}
+            <TouchableOpacity
+              activeOpacity={0.85}
+              style={styles.modeOption}
+              onPress={handleJoinOnlineRoom}
+            >
+              <View style={[styles.modeIconBox, { backgroundColor: '#F1F5F9' }]}>
+                <Users size={22} color="#0F172A" />
+              </View>
+              <View style={styles.modeTextCol}>
+                <Text style={styles.modeOptionTitle}>Join with Room Code</Text>
+                <Text style={styles.modeOptionDesc}>Enter an invitation passcode to join a match</Text>
+              </View>
+            </TouchableOpacity>
           </View>
         </View>
       </Modal>
+
+      <BottomNavBar />
     </SafeAreaView>
   );
 }
@@ -590,415 +506,612 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#050816',
-  },
-  safeAreaLight: {
-    backgroundColor: '#f1f5f9',
+    backgroundColor: '#F8FAFC',
   },
   container: {
+    paddingBottom: 20,
+  },
+  topHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     paddingHorizontal: 16,
-    paddingTop: 8,
-    paddingBottom: 24,
-  },
-  cardLight: {
-    backgroundColor: '#ffffff',
-    borderColor: '#cbd5e1',
-  },
-  textDark: {
-    color: '#0f172a',
-  },
-  topBar: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  profileBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#0f1636',
-    paddingVertical: 6,
-    paddingLeft: 8,
-    paddingRight: 14,
-    borderRadius: 26,
-    borderWidth: 1.5,
-    borderColor: '#1e2b5e',
-    gap: 10,
-    flexShrink: 1,
-  },
-  avatarRing: {
-    position: 'relative',
-  },
-  profileAvatar: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    borderWidth: 2,
-    borderColor: '#00e5ff',
-  },
-  levelPill: {
-    position: 'absolute',
-    bottom: -3,
-    right: -4,
-    backgroundColor: '#ffd700',
-    paddingHorizontal: 4,
-    paddingVertical: 1,
-    borderRadius: 5,
-    borderWidth: 1,
-    borderColor: '#050816',
-  },
-  levelPillText: {
-    fontSize: 7,
-    fontWeight: '900',
-    color: '#050816',
-  },
-  profileTextCol: {
-    justifyContent: 'center',
-  },
-  greetingRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  greeting: {
-    fontSize: 8,
-    fontWeight: '900',
-    color: '#00e5ff',
-    letterSpacing: 1,
-  },
-  playerName: {
-    fontSize: 15,
-    fontWeight: '900',
-    color: '#f8fafc',
-  },
-  topRightActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  coinsPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-    backgroundColor: '#0f1636',
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-    borderRadius: 16,
-    borderWidth: 1.5,
-    borderColor: 'rgba(255, 215, 0, 0.35)',
-  },
-  coinsText: {
-    fontSize: 13,
-    fontWeight: '900',
-    color: '#ffd700',
-  },
-  iconCircle: {
-    width: 38,
-    height: 38,
-    borderRadius: 14,
-    backgroundColor: '#0f1636',
-    borderWidth: 1.5,
-    borderColor: '#1e2b5e',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  statsBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: '#0f1636',
-    borderRadius: 18,
     paddingVertical: 12,
-    paddingHorizontal: 10,
-    borderWidth: 1.5,
-    borderColor: '#1e2b5e',
-    marginBottom: 14,
+    backgroundColor: '#FFFFFF',
+    borderBottomWidth: 1,
+    borderBottomColor: '#E2E8F0',
   },
-  statCell: {
-    flex: 1,
-    alignItems: 'center',
-  },
-  statValue: {
-    fontSize: 16,
-    fontWeight: '900',
-    color: '#f8fafc',
-  },
-  statLabel: {
-    fontSize: 9,
-    fontWeight: '800',
-    color: '#94a3b8',
-    letterSpacing: 0.8,
-    marginTop: 2,
-  },
-  statDivider: {
-    width: 1,
-    height: 24,
-    backgroundColor: '#1e2b5e',
-  },
-  onlineRow: {
+  brandGroup: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    gap: 8,
   },
-  netDot: {
-    width: 7,
-    height: 7,
-    borderRadius: 4,
-  },
-  sectionHeaderRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 10,
-  },
-  sectionTitleLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  sectionTitle: {
-    fontSize: 13,
-    fontWeight: '900',
-    color: '#e2e8f0',
-    letterSpacing: 1.4,
-  },
-  quickJoinPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-    backgroundColor: 'rgba(0, 229, 255, 0.12)',
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: 'rgba(0, 229, 255, 0.35)',
-  },
-  quickJoinText: {
-    fontSize: 11,
-    fontWeight: '800',
-    color: '#00e5ff',
-  },
-  gameCardTouchable: {
-    borderRadius: 24,
-  },
-  gameCard: {
-    borderRadius: 24,
-    padding: 18,
-    borderWidth: 1.5,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.35,
-    shadowRadius: 12,
-    elevation: 6,
-  },
-  cardTopRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 10,
-  },
-  cardBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 10,
-    borderWidth: 1,
-  },
-  cardBadgeText: {
-    fontSize: 9,
-    fontWeight: '900',
-    letterSpacing: 1,
-  },
-  playersPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: 'rgba(15, 23, 42, 0.55)',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 10,
-  },
-  playersPillText: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: '#e2e8f0',
-  },
-  cardMainRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 14,
-  },
-  cardInfoCol: {
-    flex: 1,
-  },
-  gameCardTitle: {
-    fontSize: 22,
-    fontWeight: '900',
-    color: '#ffffff',
-    letterSpacing: 1,
-  },
-  gameCardSubtitle: {
-    fontSize: 12,
-    fontWeight: '800',
-    marginTop: 2,
-    marginBottom: 6,
-  },
-  gameCardDesc: {
-    fontSize: 12,
-    color: '#cbd5e1',
-    lineHeight: 17,
-  },
-  cardFooterRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(255, 255, 255, 0.1)',
-    paddingTop: 12,
-  },
-  previewTokensRow: {
-    flexDirection: 'row',
-    gap: 6,
-  },
-  previewOrb: {
+  brandIconBox: {
     width: 32,
     height: 32,
     borderRadius: 10,
-    backgroundColor: 'rgba(5, 8, 22, 0.65)',
-    borderWidth: 1.2,
+    backgroundColor: '#4F46E5',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#4F46E5',
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  brandTitle: {
+    fontSize: 20,
+    fontWeight: '900',
+    color: '#4F46E5',
+    letterSpacing: -0.4,
+  },
+  headerRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  currencyBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#ECFEFF',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#A5F3FC',
+    gap: 5,
+  },
+  coinDot: {
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    backgroundColor: '#0891B2',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  previewOrbText: {
-    fontSize: 13,
+  coinSymbol: {
+    color: '#FFFFFF',
+    fontSize: 10,
     fontWeight: '900',
-    color: '#ffffff',
   },
-  playBtnPill: {
+  currencyAmount: {
+    fontSize: 12,
+    fontWeight: '900',
+    color: '#0F172A',
+  },
+  currencyUnit: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#0891B2',
+  },
+  avatarButton: {
+    padding: 2,
+    borderRadius: 20,
+    borderWidth: 2,
+    borderColor: 'rgba(79, 70, 229, 0.4)',
+  },
+  avatarImg: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#CBD5E1',
+  },
+  heroSection: {
+    paddingHorizontal: 16,
+    paddingTop: 20,
+    paddingBottom: 28,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E2E8F0',
+  },
+  liveBadgePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#BAE6FD',
+    gap: 6,
+    marginBottom: 12,
+    shadowColor: '#000',
+    shadowOpacity: 0.04,
+    shadowRadius: 3,
+    elevation: 2,
+  },
+  liveDotPulse: {
+    width: 7,
+    height: 7,
+    borderRadius: 3.5,
+    backgroundColor: '#06B6D4',
+  },
+  liveBadgeText: {
+    fontSize: 10,
+    fontWeight: '900',
+    color: '#0891B2',
+    letterSpacing: 0.6,
+  },
+  heroHeadline: {
+    fontSize: 28,
+    fontWeight: '900',
+    color: '#0F172A',
+    letterSpacing: -0.5,
+    lineHeight: 34,
+  },
+  heroDescription: {
+    fontSize: 13,
+    color: '#64748B',
+    lineHeight: 19,
+    marginTop: 6,
+    maxWidth: '92%',
+  },
+  heroActionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginTop: 18,
+  },
+  exploreButton: {
+    flex: 1,
+    height: 48,
+    borderRadius: 12,
+    backgroundColor: '#4F46E5',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    shadowColor: '#4F46E5',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.28,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  exploreButtonText: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '800',
+  },
+  soundButton: {
+    width: 48,
+    height: 48,
+    borderRadius: 12,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOpacity: 0.04,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  telemetryCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    marginHorizontal: 16,
+    marginTop: -16,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    paddingVertical: 12,
+    paddingHorizontal: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 6,
+    elevation: 3,
+  },
+  telemetryItem: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  telemetryIconRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  telemetryNumber: {
+    fontSize: 15,
+    fontWeight: '900',
+    color: '#0F172A',
+  },
+  telemetryLabel: {
+    fontSize: 10,
+    color: '#64748B',
+    marginTop: 2,
+    fontWeight: '600',
+  },
+  telemetryDivider: {
+    width: 1,
+    height: 28,
+    backgroundColor: '#F1F5F9',
+  },
+  bentoSection: {
+    paddingHorizontal: 16,
+    marginTop: 16,
+    gap: 12,
+  },
+  tournamentCard: {
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    padding: 14,
+    shadowColor: '#000',
+    shadowOpacity: 0.04,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  tournamentHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
+  firePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FEF3C7',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 12,
+    gap: 4,
+    borderWidth: 1,
+    borderColor: '#FDE68A',
+  },
+  firePillText: {
+    fontSize: 9,
+    fontWeight: '900',
+    color: '#B45309',
+    letterSpacing: 0.5,
+  },
+  tournamentRound: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#64748B',
+  },
+  tournamentBottomRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    justifyContent: 'space-between',
+  },
+  tournamentSubtitle: {
+    fontSize: 11,
+    color: '#64748B',
+    fontWeight: '600',
+  },
+  prizeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    marginTop: 2,
+  },
+  prizeAmount: {
+    fontSize: 18,
+    fontWeight: '900',
+    color: '#0F172A',
+  },
+  prizeUnit: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#0891B2',
+  },
+  joinFreeBtn: {
+    backgroundColor: '#0891B2',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 10,
+    shadowColor: '#0891B2',
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  joinFreeBtnText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  dailyRewardCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    padding: 14,
+    shadowColor: '#000',
+    shadowOpacity: 0.04,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  dailyRewardLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    flex: 1,
+  },
+  chestIconBox: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    backgroundColor: '#EEF2FF',
+    borderWidth: 1,
+    borderColor: '#E0E7FF',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  chestTitleRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    paddingHorizontal: 18,
-    paddingVertical: 10,
-    borderRadius: 14,
   },
-  playBtnPillText: {
-    fontSize: 13,
+  chestTitle: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: '#0F172A',
+  },
+  readyTag: {
+    backgroundColor: '#ECFDF5',
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
+  },
+  readyTagText: {
+    fontSize: 9,
     fontWeight: '900',
-    color: '#050816',
-    letterSpacing: 1,
+    color: '#059669',
+  },
+  chestSubtitle: {
+    fontSize: 11,
+    color: '#64748B',
+    marginTop: 2,
+  },
+  claimBtn: {
+    backgroundColor: '#4F46E5',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 10,
+    shadowColor: '#4F46E5',
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  claimedBtn: {
+    backgroundColor: '#F1F5F9',
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+    shadowOpacity: 0,
+    elevation: 0,
+  },
+  claimBtnText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  claimedBtnText: {
+    color: '#059669',
+  },
+  classicsSection: {
+    paddingHorizontal: 16,
+    marginTop: 20,
+    gap: 12,
+  },
+  classicsHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  classicsTitle: {
+    fontSize: 20,
+    fontWeight: '900',
+    color: '#0F172A',
+    letterSpacing: -0.3,
+  },
+  classicsSubtitle: {
+    fontSize: 12,
+    color: '#64748B',
+    marginTop: 1,
+  },
+  gamesStack: {
+    gap: 14,
+  },
+  gameCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    padding: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.05,
+    shadowRadius: 6,
+    elevation: 2,
+    gap: 10,
+  },
+  gameImageWrap: {
+    width: '100%',
+    height: 160,
+    borderRadius: 14,
+    overflow: 'hidden',
+    position: 'relative',
+    backgroundColor: '#E2E8F0',
+  },
+  gameImage: {
+    width: '100%',
+    height: '100%',
+    resizeMode: 'cover',
+  },
+  imageGradientOverlay: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    height: 80,
+  },
+  tagLeft: {
+    position: 'absolute',
+    top: 10,
+    left: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.92)',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 20,
+    gap: 4,
+    shadowColor: '#000',
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+    elevation: 2,
+  },
+  tagLeftText: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#0F172A',
+    textTransform: 'uppercase',
+  },
+  tagRight: {
+    position: 'absolute',
+    top: 10,
+    right: 10,
+    backgroundColor: 'rgba(255, 255, 255, 0.92)',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 20,
+    shadowColor: '#000',
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+    elevation: 2,
+  },
+  tagRightText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#0891B2',
+  },
+  gameInfoRow: {
+    gap: 2,
+  },
+  gameCardTitle: {
+    fontSize: 17,
+    fontWeight: '900',
+    color: '#0F172A',
+  },
+  gameCardDescription: {
+    fontSize: 12,
+    color: '#64748B',
+    lineHeight: 17,
+  },
+  gameCardFooter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: '#F1F5F9',
+  },
+  onlineStatusRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  onlineDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 3.5,
+    backgroundColor: '#06B6D4',
+  },
+  onlineCountText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#475569',
+  },
+  quickPlayBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#4F46E5',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 10,
+    gap: 5,
+    shadowColor: '#4F46E5',
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  quickPlayText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '800',
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(3, 6, 18, 0.85)',
-    justifyContent: 'flex-end',
-  },
-  modalContent: {
-    backgroundColor: '#0b102b',
-    borderTopLeftRadius: 28,
-    borderTopRightRadius: 28,
+    backgroundColor: 'rgba(15, 23, 42, 0.6)',
+    justifyContent: 'center',
+    alignItems: 'center',
     padding: 20,
-    maxHeight: '88%',
-    borderTopWidth: 1.5,
-    borderColor: '#253470',
+  },
+  modalCard: {
+    width: '100%',
+    maxWidth: 360,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    padding: 20,
+    gap: 12,
+    shadowColor: '#000',
+    shadowOpacity: 0.15,
+    shadowRadius: 10,
+    elevation: 8,
   },
   modalHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  modalGameTag: {
-    fontSize: 10,
-    fontWeight: '900',
-    letterSpacing: 1.4,
+    alignItems: 'flex-start',
+    marginBottom: 4,
   },
   modalTitle: {
-    fontSize: 22,
+    fontSize: 18,
     fontWeight: '900',
-    color: '#f8fafc',
+    color: '#0F172A',
   },
-  modalCloseBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 12,
-    backgroundColor: '#151e46',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  modeSectionCard: {
-    backgroundColor: '#111942',
-    borderRadius: 20,
-    padding: 16,
-    borderWidth: 1.5,
-    borderColor: 'rgba(0, 255, 135, 0.3)',
-    marginBottom: 14,
-  },
-  onlineSectionCard: {
-    borderColor: 'rgba(0, 229, 255, 0.35)',
-  },
-  modeHeaderRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    marginBottom: 14,
-  },
-  modeIconBadge: {
-    width: 44,
-    height: 44,
-    borderRadius: 14,
-    backgroundColor: 'rgba(0, 255, 135, 0.14)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  modeTitle: {
-    fontSize: 16,
-    fontWeight: '900',
-    color: '#f8fafc',
-  },
-  modeSubtitle: {
-    fontSize: 11,
-    color: '#94a3b8',
+  modalSubtitle: {
+    fontSize: 12,
+    color: '#64748B',
     marginTop: 2,
   },
-  selectorLabel: {
-    fontSize: 10,
-    fontWeight: '900',
-    color: '#a5b4fc',
-    letterSpacing: 1.2,
-    marginBottom: 8,
+  modalCloseBtn: {
+    padding: 4,
   },
-  difficultyRow: {
+  modeOption: {
     flexDirection: 'row',
-    gap: 8,
-  },
-  diffPill: {
-    flex: 1,
-    paddingVertical: 10,
-    borderRadius: 12,
-    backgroundColor: '#0b102b',
-    borderWidth: 1.5,
-    borderColor: '#253470',
     alignItems: 'center',
+    backgroundColor: '#F8FAFC',
+    borderRadius: 14,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    gap: 12,
   },
-  diffPillActive: {
-    backgroundColor: 'rgba(0, 255, 135, 0.18)',
-    borderColor: '#00ff87',
+  modeIconBox: {
+    width: 42,
+    height: 42,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  diffPillText: {
-    fontSize: 12,
+  modeTextCol: {
+    flex: 1,
+  },
+  modeOptionTitle: {
+    fontSize: 14,
     fontWeight: '800',
-    color: '#94a3b8',
+    color: '#0F172A',
   },
-  diffPillTextActive: {
-    color: '#00ff87',
-    fontWeight: '900',
-  },
-  onlineSubRow: {
-    flexDirection: 'row',
-    gap: 10,
-    marginTop: 6,
+  modeOptionDesc: {
+    fontSize: 11,
+    color: '#64748B',
+    marginTop: 1,
   },
 });
